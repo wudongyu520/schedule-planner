@@ -1,41 +1,80 @@
 'use client'
 
-import { MINUTES_IN_DAY, isToday, getNowMinutes } from '@/lib/time'
-import { useEffect, useState } from 'react'
+import { MINUTES_IN_DAY, isToday, getNowMinutes, formatDate, snapToGrid } from '@/lib/time'
+import { useEffect, useState, useRef, type MouseEvent } from 'react'
+import { useTimeBlockStore } from '@/store/timeBlockStore'
+import { TimeBlockItem } from './TimeBlockItem'
 
 interface DayColumnProps {
   date: Date
   hourHeight?: number
-  children?: React.ReactNode
 }
 
-export function DayColumn({ date, hourHeight = 60, children }: DayColumnProps) {
+export function DayColumn({ date, hourHeight = 60 }: DayColumnProps) {
   const [nowMinutes, setNowMinutes] = useState(getNowMinutes())
   const today = isToday(date)
+  const dateStr = formatDate(date)
+  const { blocks, addBlock, selectBlock } = useTimeBlockStore()
+  const dayBlocks = blocks.filter((b) => b.date === dateStr)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!today) return
-
-    const timer = setInterval(() => {
-      setNowMinutes(getNowMinutes())
-    }, 60000)
-
+    const timer = setInterval(() => setNowMinutes(getNowMinutes()), 60000)
     return () => clearInterval(timer)
   }, [today])
+
+  const handleDoubleClick = (e: MouseEvent<HTMLDivElement>) => {
+    if (!containerRef.current) return
+    const rect = containerRef.current.getBoundingClientRect()
+    const y = e.clientY - rect.top
+    const clickMinutes = snapToGrid((y / (hourHeight * 24)) * MINUTES_IN_DAY)
+
+    const defaultDuration = 60
+    let start = clickMinutes - defaultDuration / 2
+    let end = clickMinutes + defaultDuration / 2
+
+    if (start < 0) {
+      end -= start
+      start = 0
+    }
+    if (end > MINUTES_IN_DAY) {
+      start -= (end - MINUTES_IN_DAY)
+      end = MINUTES_IN_DAY
+    }
+
+    const id = addBlock(dateStr, start, end)
+    if (id) {
+      selectBlock(id)
+    } else {
+      alert('该时间段与已有时间块重叠')
+    }
+  }
 
   const hours = Array.from({ length: 24 }, (_, i) => i)
 
   return (
     <div
+      ref={containerRef}
       className="relative flex-1 min-w-[120px] border-r border-border last:border-r-0"
       style={{ height: hourHeight * 24 }}
+      onDoubleClick={handleDoubleClick}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('hour-line')) {
+          selectBlock(null)
+        }
+      }}
     >
       {hours.map((hour) => (
         <div
           key={hour}
-          className="absolute left-0 right-0 border-t border-border/50"
+          className="hour-line absolute left-0 right-0 border-t border-border/50"
           style={{ top: `${(hour * 60 / MINUTES_IN_DAY) * 100}%` }}
         />
+      ))}
+
+      {dayBlocks.map((block) => (
+        <TimeBlockItem key={block.id} block={block} hourHeight={hourHeight} />
       ))}
 
       {today && (
@@ -49,10 +88,6 @@ export function DayColumn({ date, hourHeight = 60, children }: DayColumnProps) {
           </div>
         </div>
       )}
-
-      <div className="relative w-full h-full">
-        {children}
-      </div>
     </div>
   )
 }

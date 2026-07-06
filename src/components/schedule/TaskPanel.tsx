@@ -4,6 +4,11 @@ export function TaskPanel() {
       <div className="p-4 border-b border-border">
         <h2 className="text-lg font-semibold">任务列表</h2>
         <p className="text-xs text-muted-foreground mt-1">拖拽任务到时间块中</p>
+        <div className="mt-3 p-2 rounded-md bg-muted/50 text-xs text-muted-foreground space-y-1">
+          <p>💡 双击时间轴创建功能区</p>
+          <p>💡 拖拽边缘调整大小</p>
+          <p>💡 双击功能区删除</p>
+        </div>
       </div>
       <div className="flex-1 p-4 overflow-y-auto">
         <div className="text-sm text-muted-foreground text-center py-8">
