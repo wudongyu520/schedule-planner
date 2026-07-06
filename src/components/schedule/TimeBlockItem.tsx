@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, useCallback, type MouseEvent, useEffect } from 'react'
-import { MINUTES_IN_DAY, minutesToTime, timeToMinutes, snapToGrid } from '@/lib/time'
+import { MINUTES_IN_DAY, minutesToTime, timeToMinutes, snapToGrid, roundToGranularity } from '@/lib/time'
 import { useTimeBlockStore, type TimeBlockData, BLOCK_COLORS } from '@/store/timeBlockStore'
 
 interface TimeBlockItemProps {
@@ -67,7 +67,7 @@ export function TimeBlockItem({ block, hourHeight }: TimeBlockItemProps) {
         if (!dragMode.current) return
 
         const deltaY = moveEvent.clientY - dragStartY.current
-        const deltaMinutes = snapToGrid((deltaY / hourHeight) * 60)
+        const deltaMinutes = roundToGranularity((deltaY / hourHeight) * 60)
 
         if (dragMode.current === 'move') {
           const duration = dragStartEnd.current - dragStartStart.current
