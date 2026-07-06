@@ -6,8 +6,9 @@ export function TaskPanel() {
         <p className="text-xs text-muted-foreground mt-1">拖拽任务到时间块中</p>
         <div className="mt-3 p-2 rounded-md bg-muted/50 text-xs text-muted-foreground space-y-1">
           <p>💡 双击时间轴创建功能区</p>
-          <p>💡 拖拽边缘调整大小</p>
-          <p>💡 双击功能区删除</p>
+          <p>💡 拖拽功能区上下移动</p>
+          <p>💡 悬停边缘可调整大小</p>
+          <p>💡 双击功能区编辑设置</p>
         </div>
       </div>
       <div className="flex-1 p-4 overflow-y-auto">
