@@ -1,0 +1,138 @@
+// Prisma Schema - 时间块日程规划系统
+// 文档：https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==================== 用户表 ====================
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  name      String?
+  password  String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  tasks     Task[]
+  timeBlocks TimeBlock[]
+  logs      TaskLog[]
+  templates Template[]
+}
+
+// ==================== 任务表 ====================
+model Task {
+  id             String    @id @default(cuid())
+  userId         String
+  title          String
+  description    String?
+  duration       Int
+  priority       Priority  @default(MEDIUM)
+  status         TaskStatus @default(PENDING)
+  tags           String[]  @default([])
+  color          String?
+
+  timeBlockId    String?
+  blockPosition  Int?
+
+  completedAt    DateTime?
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timeBlock      TimeBlock? @relation(fields: [timeBlockId], references: [id], onDelete: SetNull)
+  logs           TaskLog[]
+
+  @@index([userId])
+  @@index([timeBlockId])
+  @@index([status])
+}
+
+// ==================== 时间块表 ====================
+model TimeBlock {
+  id          String    @id @default(cuid())
+  userId      String
+  name        String
+  color       String
+  date        DateTime
+
+  startTime   Int
+  endTime     Int
+
+  position    Int       @default(0)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks       Task[]
+
+  @@index([userId, date])
+}
+
+// ==================== 任务日志表 ====================
+model TaskLog {
+  id        String   @id @default(cuid())
+  userId    String
+  taskId    String?
+  taskTitle String
+  date      DateTime
+  action    LogAction
+  reason    String?
+  details   String?
+
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task      Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([userId, date])
+}
+
+// ==================== 模板表 ====================
+model Template {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  blocks      Json
+  isPublic    Boolean  @default(false)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ==================== 枚举 ====================
+enum Priority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum TaskStatus {
+  PENDING
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  EXPIRED
+}
+
+enum LogAction {
+  CREATED
+  SCHEDULED
+  UNSCHEDULED
+  COMPLETED
+  EXPIRED
+  EDITED
+  DELETED
+}
