@@ -116,3 +116,49 @@ export function addWeeks(date: Date, weeks: number): Date {
 export function isToday(date: Date): boolean {
   return isSameDay(date, new Date())
 }
+
+export function addDays(date: Date, days: number): Date {
+  const d = new Date(date)
+  d.setDate(d.getDate() + days)
+  return d
+}
+
+export function addMonths(date: Date, months: number): Date {
+  const d = new Date(date)
+  d.setMonth(d.getMonth() + months)
+  return d
+}
+
+export function getMonthDates(date: Date): Date[] {
+  const result: Date[] = []
+  const year = date.getFullYear()
+  const month = date.getMonth()
+  const firstDay = new Date(year, month, 1)
+  const startDayOfWeek = firstDay.getDay()
+
+  const calendarStart = new Date(firstDay)
+  calendarStart.setDate(1 - startDayOfWeek)
+
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(calendarStart)
+    d.setDate(calendarStart.getDate() + i)
+    result.push(d)
+  }
+
+  return result
+}
+
+export function startOfMonth(date: Date): Date {
+  const d = new Date(date)
+  d.setDate(1)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+export function endOfMonth(date: Date): Date {
+  const d = new Date(date)
+  d.setMonth(d.getMonth() + 1)
+  d.setDate(0)
+  d.setHours(23, 59, 59, 999)
+  return d
+}

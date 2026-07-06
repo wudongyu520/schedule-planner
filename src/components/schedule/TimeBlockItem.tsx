@@ -40,6 +40,7 @@ function BlockTaskItem({
       className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] bg-background/90 border border-border/50 cursor-grab hover:shadow-sm transition-shadow ${
         task.completed ? 'opacity-50' : ''
       } ${isDragging ? 'opacity-30' : ''}`}
+      onMouseDown={(e) => e.stopPropagation()}
       onDoubleClick={(e) => {
         e.stopPropagation()
         onEdit()
@@ -73,7 +74,7 @@ function BlockTaskItem({
 }
 
 export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: TimeBlockItemProps) {
-  const { updateBlock, removeBlock, selectBlock, selectedBlockId } = useTimeBlockStore()
+  const { updateBlock, removeBlock, selectBlock, selectedBlockId, toggleLock } = useTimeBlockStore()
   const { tasks, removeFromBlock, toggleComplete, updateTask, removeTask, assignToBlock, canAssignToBlock, getBlockTaskDuration } = useTaskStore()
   const dragMode = useRef<DragMode>(null)
   const dragStartY = useRef(0)
@@ -146,6 +147,8 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: Time
       e.stopPropagation()
       e.preventDefault()
 
+      if (block.locked) return
+
       dragMode.current = mode
       dragStartY.current = e.clientY
       dragStartStart.current = block.startTime
@@ -199,7 +202,7 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: Time
       document.body.style.cursor = mode === 'move' ? 'grabbing' : 'ns-resize'
       document.body.style.userSelect = 'none'
     },
-    [block, hourHeight, updateBlock, selectBlock]
+    [block, hourHeight, updateBlock, selectBlock, block.locked]
   )
 
   const handleSave = () => {
@@ -276,9 +279,9 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: Time
     <>
       <div
         ref={setNodeRef}
-        className={`absolute left-1 right-1 rounded-lg border-2 cursor-grab transition-all group ${
-          selected ? 'shadow-lg' : ''
-        } ${isDragging ? 'opacity-80' : ''} ${
+        className={`absolute left-1 right-1 rounded-lg border-2 transition-all group ${
+          block.locked ? 'cursor-default' : 'cursor-grab'
+        } ${selected ? 'shadow-lg' : ''} ${isDragging ? 'opacity-80' : ''} ${
           isOver && canDrop
             ? 'ring-2 ring-green-500 ring-offset-1 scale-[1.01]'
             : isOver && !canDrop
@@ -302,25 +305,34 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: Time
           setShowEditor(true)
         }}
       >
-        <div
-          className="absolute -top-2.5 left-1/2 -translate-x-1/2 w-10 h-5 rounded-full cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center justify-center shadow-sm"
-          style={{ backgroundColor: block.color }}
-          onMouseDown={handleMouseDown('resize-top')}
-        >
-          <div className="w-4 h-0.5 rounded-full bg-white/70" />
-        </div>
+        {!block.locked && (
+          <>
+            <div
+              className="absolute -top-2.5 left-1/2 -translate-x-1/2 w-10 h-5 rounded-full cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center justify-center shadow-sm"
+              style={{ backgroundColor: block.color }}
+              onMouseDown={handleMouseDown('resize-top')}
+            >
+              <div className="w-4 h-0.5 rounded-full bg-white/70" />
+            </div>
 
-        <div
-          className="absolute top-0 left-0 right-0 h-4 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity z-[5]"
-          onMouseDown={handleMouseDown('resize-top')}
-        />
+            <div
+              className="absolute top-0 left-0 right-0 h-4 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity z-[5]"
+              onMouseDown={handleMouseDown('resize-top')}
+            />
+          </>
+        )}
 
         <div className="px-2.5 pt-2 pb-1.5 h-full flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between shrink-0">
-            <div className="text-xs font-bold truncate" style={{ color: block.color }}>
-              {block.name}
+          <div className="flex items-center justify-between shrink-0 gap-1">
+            <div className="flex items-center gap-1 min-w-0">
+              {block.locked && (
+                <span className="text-[10px] shrink-0" title="已锁定">🔒</span>
+              )}
+              <div className="text-xs font-bold truncate" style={{ color: block.color }}>
+                {block.name}
+              </div>
             </div>
-            <div className="text-[10px] font-medium text-muted-foreground shrink-0 ml-1">
+            <div className="text-[10px] font-medium text-muted-foreground shrink-0">
               <span className={completedCount > 0 ? 'text-green-600' : ''}>{completedCount}</span>
               <span className="text-muted-foreground/50">/</span>
               <span>{totalCount}</span>
@@ -382,18 +394,22 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: Time
           )}
         </div>
 
-        <div
-          className="absolute bottom-0 left-0 right-0 h-4 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity z-[5]"
-          onMouseDown={handleMouseDown('resize-bottom')}
-        />
+        {!block.locked && (
+          <>
+            <div
+              className="absolute bottom-0 left-0 right-0 h-4 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity z-[5]"
+              onMouseDown={handleMouseDown('resize-bottom')}
+            />
 
-        <div
-          className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-10 h-5 rounded-full cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center justify-center shadow-sm"
-          style={{ backgroundColor: block.color }}
-          onMouseDown={handleMouseDown('resize-bottom')}
-        >
-          <div className="w-4 h-0.5 rounded-full bg-white/70" />
-        </div>
+            <div
+              className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-10 h-5 rounded-full cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center justify-center shadow-sm"
+              style={{ backgroundColor: block.color }}
+              onMouseDown={handleMouseDown('resize-bottom')}
+            >
+              <div className="w-4 h-0.5 rounded-full bg-white/70" />
+            </div>
+          </>
+        )}
       </div>
 
       {showEditor && (
@@ -459,6 +475,22 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: Time
                   />
                 ))}
               </div>
+            </div>
+
+            <div className="flex items-center justify-between py-2 border-t border-border">
+              <span className="text-xs text-muted-foreground">锁定功能区</span>
+              <button
+                onClick={() => toggleLock(block.id)}
+                className={`relative w-10 h-5 rounded-full transition-colors ${
+                  block.locked ? 'bg-primary' : 'bg-muted'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-background shadow-sm transition-transform ${
+                    block.locked ? 'left-[22px]' : 'left-0.5'
+                  }`}
+                />
+              </button>
             </div>
 
             <div className="flex gap-2 pt-1">

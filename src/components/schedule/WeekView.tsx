@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
-import { getWeekDates, addWeeks } from '@/lib/time'
-import { DateHeader } from './DateHeader'
+import { getWeekDates, addWeeks, addDays, addMonths, formatDate } from '@/lib/time'
+import { DateHeader, type ViewMode } from './DateHeader'
 import { TimeRuler } from './TimeRuler'
 import { DayColumn } from './DayColumn'
 import { TaskPanel } from './TaskPanel'
+import { MonthView } from './MonthView'
 import { useTaskStore, PRIORITY_CONFIG } from '@/store/taskStore'
 import { useTimeBlockStore } from '@/store/timeBlockStore'
 
@@ -16,6 +17,7 @@ interface WeekViewProps {
 
 export function WeekView({ hourHeight = 60 }: WeekViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
+  const [viewMode, setViewMode] = useState<ViewMode>('week')
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
   const { tasks, assignToBlock, canAssignToBlock } = useTaskStore()
   const { blocks: timeBlocks } = useTimeBlockStore()
@@ -29,7 +31,25 @@ export function WeekView({ hourHeight = 60 }: WeekViewProps) {
 
   const handlePrevWeek = () => setCurrentDate(addWeeks(currentDate, -1))
   const handleNextWeek = () => setCurrentDate(addWeeks(currentDate, 1))
+  const handlePrevDay = () => setCurrentDate(addDays(currentDate, -1))
+  const handleNextDay = () => setCurrentDate(addDays(currentDate, 1))
+  const handlePrevMonth = () => {
+    const d = new Date(currentDate)
+    d.setDate(1)
+    d.setMonth(d.getMonth() - 1)
+    setCurrentDate(d)
+  }
+  const handleNextMonth = () => {
+    const d = new Date(currentDate)
+    d.setDate(1)
+    d.setMonth(d.getMonth() + 1)
+    setCurrentDate(d)
+  }
   const handleToday = () => setCurrentDate(new Date())
+
+  const handleViewModeChange = (mode: ViewMode) => {
+    setViewMode(mode)
+  }
 
   const handleDragStart = (e: DragStartEvent) => {
     setActiveTaskId(e.active.id as string)
@@ -66,6 +86,8 @@ export function WeekView({ hourHeight = 60 }: WeekViewProps) {
 
   const activeTask = activeTaskId ? tasks.find((t) => t.id === activeTaskId) : null
 
+  const displayDates = viewMode === 'day' ? [currentDate] : weekDates
+
   return (
     <DndContext
       sensors={sensors}
@@ -78,21 +100,35 @@ export function WeekView({ hourHeight = 60 }: WeekViewProps) {
         <div className="flex-1 flex flex-col overflow-hidden">
           <DateHeader
             weekDates={weekDates}
+            currentDate={currentDate}
+            viewMode={viewMode}
             onPrevWeek={handlePrevWeek}
             onNextWeek={handleNextWeek}
+            onPrevDay={handlePrevDay}
+            onNextDay={handleNextDay}
+            onPrevMonth={handlePrevMonth}
+            onNextMonth={handleNextMonth}
             onToday={handleToday}
+            onViewModeChange={handleViewModeChange}
           />
 
-          <div className="flex-1 overflow-y-auto">
-            <div className="flex">
-              <TimeRuler hourHeight={hourHeight} />
-              <div className="flex flex-1">
-                {weekDates.map((date, index) => (
-                  <DayColumn key={index} date={date} hourHeight={hourHeight} />
-                ))}
+          {viewMode === 'month' ? (
+            <MonthView currentDate={currentDate} onDateClick={(d) => {
+              setCurrentDate(d)
+              setViewMode('day')
+            }} />
+          ) : (
+            <div className="flex-1 overflow-y-auto">
+              <div className="flex">
+                <TimeRuler hourHeight={hourHeight} />
+                <div className="flex flex-1">
+                  {displayDates.map((date, index) => (
+                    <DayColumn key={`${formatDate(date)}-${index}`} date={date} hourHeight={hourHeight} />
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 

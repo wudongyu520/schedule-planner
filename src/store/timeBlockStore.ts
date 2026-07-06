@@ -8,6 +8,7 @@ export interface TimeBlockData {
   color: string
   startTime: number // 分钟
   endTime: number // 分钟
+  locked: boolean
 }
 
 export const BLOCK_COLORS = [
@@ -28,6 +29,7 @@ interface TimeBlockStore {
   removeBlock: (id: string) => void
   selectBlock: (id: string | null) => void
   getBlocksByDate: (date: string) => TimeBlockData[]
+  toggleLock: (id: string) => void
 }
 
 function genId(): string {
@@ -58,6 +60,7 @@ export const useTimeBlockStore = create<TimeBlockStore>((set, get) => ({
       color,
       startTime: start,
       endTime: end,
+      locked: false,
     }
 
     set((state) => ({ blocks: [...state.blocks, block] }))
@@ -68,6 +71,10 @@ export const useTimeBlockStore = create<TimeBlockStore>((set, get) => ({
     const state = get()
     const block = state.blocks.find((b) => b.id === id)
     if (!block) return false
+
+    if (block.locked && (updates.startTime !== undefined || updates.endTime !== undefined)) {
+      return false
+    }
 
     const newStart = updates.startTime !== undefined ? snapToGrid(updates.startTime) : block.startTime
     const newEnd = updates.endTime !== undefined ? snapToGrid(updates.endTime) : block.endTime
@@ -100,5 +107,13 @@ export const useTimeBlockStore = create<TimeBlockStore>((set, get) => ({
 
   getBlocksByDate: (date) => {
     return get().blocks.filter((b) => b.date === date)
+  },
+
+  toggleLock: (id) => {
+    set((state) => ({
+      blocks: state.blocks.map((b) =>
+        b.id === id ? { ...b, locked: !b.locked } : b
+      ),
+    }))
   },
 }))

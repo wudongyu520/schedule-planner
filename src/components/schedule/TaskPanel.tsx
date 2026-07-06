@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { useTaskStore, PRIORITY_CONFIG, type TaskData } from '@/store/taskStore'
 import { TaskEditModal } from './TaskEditModal'
+import { TemplateModal } from './TemplateModal'
 import type { Priority } from '@/types/task'
 
 function DraggableTask({ task, onEdit }: { task: TaskData; onEdit: () => void }) {
@@ -82,6 +83,7 @@ export function TaskPanel() {
   const { tasks, addTask, removeTask, updateTask, toggleComplete } = useTaskStore()
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
+  const [showTemplateModal, setShowTemplateModal] = useState(false)
 
   const unscheduledTasks = tasks.filter((t) => t.timeBlockId === null && !t.completed)
   const completedCount = tasks.filter((t) => t.completed).length
@@ -150,12 +152,18 @@ export function TaskPanel() {
         ))}
       </div>
 
-      <div className="p-3 border-t border-border">
+      <div className="p-3 border-t border-border space-y-2">
         <button
           onClick={() => setShowCreateModal(true)}
           className="w-full py-2.5 px-4 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
         >
           + 新建任务
+        </button>
+        <button
+          onClick={() => setShowTemplateModal(true)}
+          className="w-full py-2 px-4 text-sm font-medium border border-input rounded-lg hover:bg-muted transition-colors"
+        >
+          📋 功能区模板
         </button>
       </div>
 
@@ -183,6 +191,13 @@ export function TaskPanel() {
             useTaskStore.getState().removeFromBlock(editingTaskId)
             setEditingTaskId(null)
           }}
+        />
+      )}
+
+      {showTemplateModal && (
+        <TemplateModal
+          currentDate={new Date()}
+          onClose={() => setShowTemplateModal(false)}
         />
       )}
     </div>
