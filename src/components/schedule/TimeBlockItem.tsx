@@ -1,8 +1,10 @@
 'use client'
 
 import { useRef, useState, useCallback, type MouseEvent, useEffect } from 'react'
+import { useDroppable } from '@dnd-kit/core'
 import { MINUTES_IN_DAY, minutesToTime, timeToMinutes, snapToGrid, roundToGranularity } from '@/lib/time'
 import { useTimeBlockStore, type TimeBlockData, BLOCK_COLORS } from '@/store/timeBlockStore'
+import { useTaskStore, PRIORITY_CONFIG } from '@/store/taskStore'
 
 interface TimeBlockItemProps {
   block: TimeBlockData
@@ -13,6 +15,7 @@ type DragMode = 'move' | 'resize-top' | 'resize-bottom' | null
 
 export function TimeBlockItem({ block, hourHeight }: TimeBlockItemProps) {
   const { updateBlock, removeBlock, selectBlock, selectedBlockId } = useTimeBlockStore()
+  const { tasks, removeFromBlock, toggleComplete } = useTaskStore()
   const dragMode = useRef<DragMode>(null)
   const dragStartY = useRef(0)
   const dragStartStart = useRef(0)
@@ -24,6 +27,15 @@ export function TimeBlockItem({ block, hourHeight }: TimeBlockItemProps) {
   const [editEnd, setEditEnd] = useState(minutesToTime(block.endTime))
   const [editColor, setEditColor] = useState(block.color)
   const editorRef = useRef<HTMLDivElement>(null)
+
+  const { isOver, setNodeRef } = useDroppable({
+    id: `droppable-${block.id}`,
+    data: { type: 'block', blockId: block.id },
+  })
+
+  const blockTasks = tasks
+    .filter((t) => t.timeBlockId === block.id)
+    .sort((a, b) => (a.blockPosition ?? 0) - (b.blockPosition ?? 0))
 
   const selected = selectedBlockId === block.id
 
@@ -142,9 +154,10 @@ export function TimeBlockItem({ block, hourHeight }: TimeBlockItemProps) {
   return (
     <>
       <div
+        ref={setNodeRef}
         className={`absolute left-1 right-1 rounded-md border-2 cursor-grab transition-shadow group ${
           selected ? 'shadow-lg ring-2 ring-offset-1' : ''
-        } ${isDragging ? 'opacity-80' : ''}`}
+        } ${isDragging ? 'opacity-80' : ''} ${isOver ? 'ring-2 ring-primary ring-offset-1' : ''}`}
         style={{
           top: `${topPercent}%`,
           height: `${heightPercent}%`,
@@ -175,13 +188,60 @@ export function TimeBlockItem({ block, hourHeight }: TimeBlockItemProps) {
           onMouseDown={handleMouseDown('resize-top')}
         />
 
-        <div className="px-2 pt-2 pb-1 pointer-events-none">
-          <div className="text-xs font-semibold truncate" style={{ color: block.color }}>
+        <div className="px-2 pt-2 pb-1">
+          <div className="text-xs font-semibold truncate pointer-events-none" style={{ color: block.color }}>
             {block.name}
           </div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">
+          <div className="text-[10px] text-muted-foreground mt-0.5 pointer-events-none">
             {minutesToTime(block.startTime)} - {minutesToTime(block.endTime)}
           </div>
+
+          {blockTasks.length > 0 && (
+            <div className="mt-1.5 space-y-1">
+              {blockTasks.map((task) => {
+                const pCfg = PRIORITY_CONFIG[task.priority]
+                return (
+                  <div
+                    key={task.id}
+                    className={`flex items-center gap-1 px-1.5 py-1 rounded text-[11px] bg-background/80 ${task.completed ? 'opacity-50 line-through' : ''}`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${pCfg.bg.replace('/15', '')}`} style={{ backgroundColor: task.priority === 'HIGH' ? '#ef4444' : task.priority === 'MEDIUM' ? '#f97316' : '#3b82f6' }} />
+                    <span className="flex-1 truncate">{task.title}</span>
+                    <button
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleComplete(task.id)
+                      }}
+                      className="shrink-0 text-muted-foreground hover:text-green-600"
+                      title="标记完成"
+                    >
+                      {task.completed ? '↩' : '✓'}
+                    </button>
+                    <button
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        removeFromBlock(task.id)
+                      }}
+                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                      title="移出功能区"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {isOver && (
+            <div className="mt-1 px-1.5 py-1 rounded text-[10px] text-center border border-dashed border-primary text-primary">
+              放置任务到此
+            </div>
+          )}
         </div>
 
         <div
