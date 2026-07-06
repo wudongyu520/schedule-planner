@@ -72,3 +72,47 @@ export function formatDate(date: Date): string {
 export function formatTime(date: Date): string {
   return date.toTimeString().slice(0, 5)
 }
+
+export interface TimeRange {
+  startTime: number
+  endTime: number
+}
+
+export function checkOverlap(block1: TimeRange, block2: TimeRange): boolean {
+  return block1.startTime < block2.endTime && block2.startTime < block1.endTime
+}
+
+export function findOverlappingBlock(
+  blocks: TimeRange[],
+  newBlock: TimeRange,
+  excludeIndex?: number
+): number {
+  return blocks.findIndex((block, index) => {
+    if (excludeIndex !== undefined && index === excludeIndex) return false
+    return checkOverlap(block, newBlock)
+  })
+}
+
+export function snapToGrid(minutes: number, granularity: number = TIME_GRANULARITY): number {
+  return Math.max(0, Math.min(MINUTES_IN_DAY, roundToGranularity(minutes, granularity)))
+}
+
+export function getDayName(date: Date): string {
+  const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+  return days[date.getDay()]
+}
+
+export function getDayShortName(date: Date): string {
+  const days = ['日', '一', '二', '三', '四', '五', '六']
+  return days[date.getDay()]
+}
+
+export function addWeeks(date: Date, weeks: number): Date {
+  const d = new Date(date)
+  d.setDate(d.getDate() + weeks * 7)
+  return d
+}
+
+export function isToday(date: Date): boolean {
+  return isSameDay(date, new Date())
+}
