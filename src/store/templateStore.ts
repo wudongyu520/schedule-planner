@@ -1,13 +1,13 @@
 import { create } from 'zustand'
-import { formatDate, getWeekDates, type TimeRange } from '@/lib/time'
-import { useTimeBlockStore, type TimeBlockData } from './timeBlockStore'
+import { formatDate, getWeekDates } from '@/lib/time'
+import { useTimeBlockStore } from './timeBlockStore'
 
 export interface TemplateData {
   id: string
   name: string
   createdAt: number
   blocks: Array<{
-    dayOfWeek: number // 0 = 周一, 6 = 周日
+    dayOfWeek: number
     name: string
     color: string
     startTime: number
@@ -17,20 +17,54 @@ export interface TemplateData {
 
 interface TemplateStore {
   templates: TemplateData[]
+  loaded: boolean
 
+  loadFromDB: () => Promise<void>
   createFromWeek: (name: string, weekStartDate: Date) => string
   applyToWeek: (templateId: string, weekStartDate: Date) => boolean
   applyToDateRange: (templateId: string, startDate: Date, endDate: Date) => { success: number; failed: number }
   deleteTemplate: (id: string) => void
-  updateTemplateName: (id: string, name: string) => void
 }
 
 function genId(): string {
   return `tpl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 }
 
+async function apiPost(url: string, data: unknown) {
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    return res.ok ? await res.json() : null
+  } catch { return null }
+}
+
+async function apiDelete(url: string) {
+  try {
+    await fetch(url, { method: 'DELETE' })
+  } catch { /* ignore */ }
+}
+
 export const useTemplateStore = create<TemplateStore>((set, get) => ({
   templates: [],
+  loaded: false,
+
+  loadFromDB: async () => {
+    try {
+      const res = await fetch('/api/templates')
+      if (!res.ok) return
+      const data = await res.json()
+      const templates: TemplateData[] = data.map((t: { id: string; name: string; blocks: unknown; createdAt: string }) => ({
+        id: t.id,
+        name: t.name,
+        createdAt: new Date(t.createdAt).getTime(),
+        blocks: t.blocks as TemplateData['blocks'],
+      }))
+      set({ templates, loaded: true })
+    } catch { /* ignore */ }
+  },
 
   createFromWeek: (name, weekStartDate) => {
     const weekDates = getWeekDates(weekStartDate)
@@ -60,6 +94,7 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
     }
 
     set((state) => ({ templates: [...state.templates, template] }))
+    apiPost('/api/templates', { id: template.id, name: template.name, blocks: template.blocks })
     return template.id
   },
 
@@ -68,7 +103,7 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
     if (!template) return false
 
     const weekDates = getWeekDates(weekStartDate)
-    const { addBlock } = useTimeBlockStore.getState()
+    const { addBlock, updateBlock } = useTimeBlockStore.getState()
 
     let allSuccess = true
 
@@ -78,11 +113,7 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
       const dateStr = formatDate(date)
       const result = addBlock(dateStr, tplBlock.startTime, tplBlock.endTime)
       if (result) {
-        const { blocks, updateBlock } = useTimeBlockStore.getState()
-        const newBlock = blocks.find((b) => b.id === result)
-        if (newBlock) {
-          updateBlock(result, { name: tplBlock.name, color: tplBlock.color })
-        }
+        updateBlock(result, { name: tplBlock.name, color: tplBlock.color })
       } else {
         allSuccess = false
       }
@@ -92,9 +123,6 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
   },
 
   applyToDateRange: (templateId, startDate, endDate) => {
-    const template = get().templates.find((t) => t.id === templateId)
-    if (!template) return { success: 0, failed: 0 }
-
     const startWeek = getWeekDates(startDate)[0]
     const endWeek = getWeekDates(endDate)[0]
 
@@ -119,13 +147,6 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
     set((state) => ({
       templates: state.templates.filter((t) => t.id !== id),
     }))
-  },
-
-  updateTemplateName: (id, name) => {
-    set((state) => ({
-      templates: state.templates.map((t) =>
-        t.id === id ? { ...t, name } : t
-      ),
-    }))
+    apiDelete(`/api/templates/${id}`)
   },
 }))

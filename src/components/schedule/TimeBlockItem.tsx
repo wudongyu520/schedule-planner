@@ -6,6 +6,7 @@ import { MINUTES_IN_DAY, minutesToTime, timeToMinutes, snapToGrid, roundToGranul
 import { useTimeBlockStore, type TimeBlockData, BLOCK_COLORS } from '@/store/timeBlockStore'
 import { useTaskStore, PRIORITY_CONFIG, type TaskData } from '@/store/taskStore'
 import { TaskEditModal } from './TaskEditModal'
+import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu'
 import type { Priority } from '@/types/task'
 
 interface TimeBlockItemProps {
@@ -31,45 +32,89 @@ function BlockTaskItem({
   })
 
   const pCfg = PRIORITY_CONFIG[task.priority]
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+
+  const menuItems: ContextMenuItem[] = [
+    {
+      label: task.completed ? '标记为未完成' : '标记为完成',
+      icon: task.completed ? '↩' : '✓',
+      onClick: () => useTaskStore.getState().toggleComplete(task.id),
+    },
+    {
+      label: '编辑',
+      icon: '✎',
+      onClick: onEdit,
+    },
+    {
+      label: '移回任务列表',
+      icon: '←',
+      onClick: () => useTaskStore.getState().removeFromBlock(task.id),
+    },
+    { label: '', separator: true, onClick: () => {} },
+    {
+      label: '删除',
+      icon: '✕',
+      danger: true,
+      onClick: () => {
+        if (confirm(`删除任务"${task.title}"？`)) useTaskStore.getState().removeTask(task.id)
+      },
+    },
+  ]
 
   return (
-    <div
-      ref={setNodeRef}
-      {...listeners}
-      {...attributes}
-      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] bg-background/90 border border-border/50 cursor-grab hover:shadow-sm transition-shadow ${
-        task.completed ? 'opacity-50' : ''
-      } ${isDragging ? 'opacity-30' : ''}`}
-      onMouseDown={(e) => e.stopPropagation()}
-      onDoubleClick={(e) => {
-        e.stopPropagation()
-        onEdit()
-      }}
-      onClick={(e) => e.stopPropagation()}
-    >
-      <span
-        className="w-1.5 h-1.5 rounded-full shrink-0"
-        style={{ backgroundColor: task.priority === 'HIGH' ? '#ef4444' : task.priority === 'MEDIUM' ? '#f97316' : '#3b82f6' }}
-      />
-      <span className={`flex-1 truncate ${task.completed ? 'line-through' : ''}`}>
-        {task.title}
-      </span>
-      <span className="text-[10px] text-muted-foreground shrink-0">
-        {task.duration >= 60 ? `${Math.floor(task.duration / 60)}h${task.duration % 60 > 0 ? `${task.duration % 60}m` : ''}` : `${task.duration}m`}
-      </span>
-      <button
-        onPointerDown={(e) => e.stopPropagation()}
+    <>
+      <div
+        ref={setNodeRef}
+        {...listeners}
+        {...attributes}
+        className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] bg-background/90 border border-border/50 cursor-grab hover:shadow-sm transition-shadow ${
+          task.completed ? 'opacity-50' : ''
+        } ${isDragging ? 'opacity-30' : ''}`}
         onMouseDown={(e) => e.stopPropagation()}
-        onClick={(e) => {
+        onContextMenu={(e) => {
+          e.preventDefault()
           e.stopPropagation()
-          useTaskStore.getState().toggleComplete(task.id)
+          setContextMenu({ x: e.clientX, y: e.clientY })
         }}
-        className="shrink-0 text-muted-foreground hover:text-green-600 w-4 h-4 flex items-center justify-center rounded hover:bg-green-500/10"
-        title="标记完成"
+        onDoubleClick={(e) => {
+          e.stopPropagation()
+          onEdit()
+        }}
+        onClick={(e) => e.stopPropagation()}
       >
-        {task.completed ? '↩' : '✓'}
-      </button>
-    </div>
+        <span
+          className="w-1.5 h-1.5 rounded-full shrink-0"
+          style={{ backgroundColor: task.priority === 'HIGH' ? '#ef4444' : task.priority === 'MEDIUM' ? '#f97316' : '#3b82f6' }}
+        />
+        <span className={`flex-1 truncate ${task.completed ? 'line-through' : ''}`}>
+          {task.title}
+        </span>
+        <span className="text-[10px] text-muted-foreground shrink-0">
+          {task.duration >= 60 ? `${Math.floor(task.duration / 60)}h${task.duration % 60 > 0 ? `${task.duration % 60}m` : ''}` : `${task.duration}m`}
+        </span>
+        <button
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            useTaskStore.getState().toggleComplete(task.id)
+          }}
+          className="shrink-0 text-muted-foreground hover:text-green-600 w-4 h-4 flex items-center justify-center rounded hover:bg-green-500/10"
+          title="标记完成"
+        >
+          {task.completed ? '↩' : '✓'}
+        </button>
+      </div>
+
+      {contextMenu && (
+        <ContextMenu
+          items={menuItems}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
+    </>
   )
 }
 

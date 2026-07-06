@@ -6,8 +6,8 @@ export interface TimeBlockData {
   date: string // YYYY-MM-DD
   name: string
   color: string
-  startTime: number // 分钟
-  endTime: number // 分钟
+  startTime: number
+  endTime: number
   locked: boolean
 }
 
@@ -23,7 +23,9 @@ export const BLOCK_COLORS = [
 interface TimeBlockStore {
   blocks: TimeBlockData[]
   selectedBlockId: string | null
+  loaded: boolean
 
+  loadFromDB: () => Promise<void>
   addBlock: (date: string, startTime: number, endTime: number) => string | null
   updateBlock: (id: string, updates: Partial<Omit<TimeBlockData, 'id'>>) => boolean
   removeBlock: (id: string) => void
@@ -36,14 +38,51 @@ function genId(): string {
   return `block_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 }
 
+async function apiPost(url: string, data: unknown) {
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    return res.ok ? await res.json() : null
+  } catch { return null }
+}
+
+async function apiPut(url: string, data: unknown) {
+  try {
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    return res.ok
+  } catch { return false }
+}
+
+async function apiDelete(url: string) {
+  try {
+    await fetch(url, { method: 'DELETE' })
+  } catch { /* ignore */ }
+}
+
 export const useTimeBlockStore = create<TimeBlockStore>((set, get) => ({
   blocks: [],
   selectedBlockId: null,
+  loaded: false,
+
+  loadFromDB: async () => {
+    try {
+      const res = await fetch('/api/blocks')
+      if (!res.ok) return
+      const data = await res.json()
+      set({ blocks: data, loaded: true })
+    } catch { /* ignore */ }
+  },
 
   addBlock: (date, startTime, endTime) => {
     const start = snapToGrid(startTime)
     const end = snapToGrid(endTime)
-
     if (end - start < 5) return null
 
     const existingBlocks = get().blocks.filter((b) => b.date === date)
@@ -64,6 +103,7 @@ export const useTimeBlockStore = create<TimeBlockStore>((set, get) => ({
     }
 
     set((state) => ({ blocks: [...state.blocks, block] }))
+    apiPost('/api/blocks', block)
     return id
   },
 
@@ -93,6 +133,7 @@ export const useTimeBlockStore = create<TimeBlockStore>((set, get) => ({
         b.id === id ? { ...b, ...updates, startTime: newStart, endTime: newEnd } : b
       ),
     }))
+    apiPut(`/api/blocks/${id}`, { ...updates, startTime: newStart, endTime: newEnd })
     return true
   },
 
@@ -101,6 +142,7 @@ export const useTimeBlockStore = create<TimeBlockStore>((set, get) => ({
       blocks: state.blocks.filter((b) => b.id !== id),
       selectedBlockId: state.selectedBlockId === id ? null : state.selectedBlockId,
     }))
+    apiDelete(`/api/blocks/${id}`)
   },
 
   selectBlock: (id) => set({ selectedBlockId: id }),
@@ -110,10 +152,14 @@ export const useTimeBlockStore = create<TimeBlockStore>((set, get) => ({
   },
 
   toggleLock: (id) => {
+    const block = get().blocks.find((b) => b.id === id)
+    if (!block) return
+    const newLocked = !block.locked
     set((state) => ({
       blocks: state.blocks.map((b) =>
-        b.id === id ? { ...b, locked: !b.locked } : b
+        b.id === id ? { ...b, locked: newLocked } : b
       ),
     }))
+    apiPut(`/api/blocks/${id}`, { locked: newLocked })
   },
 }))
