@@ -20,6 +20,7 @@ interface TemplateStore {
 
   createFromWeek: (name: string, weekStartDate: Date) => string
   applyToWeek: (templateId: string, weekStartDate: Date) => boolean
+  applyToDateRange: (templateId: string, startDate: Date, endDate: Date) => { success: number; failed: number }
   deleteTemplate: (id: string) => void
   updateTemplateName: (id: string, name: string) => void
 }
@@ -88,6 +89,30 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
     })
 
     return allSuccess
+  },
+
+  applyToDateRange: (templateId, startDate, endDate) => {
+    const template = get().templates.find((t) => t.id === templateId)
+    if (!template) return { success: 0, failed: 0 }
+
+    const startWeek = getWeekDates(startDate)[0]
+    const endWeek = getWeekDates(endDate)[0]
+
+    let success = 0
+    let failed = 0
+
+    const cursor = new Date(startWeek)
+    while (cursor <= endWeek) {
+      const result = get().applyToWeek(templateId, new Date(cursor))
+      if (result) {
+        success++
+      } else {
+        failed++
+      }
+      cursor.setDate(cursor.getDate() + 7)
+    }
+
+    return { success, failed }
   },
 
   deleteTemplate: (id) => {

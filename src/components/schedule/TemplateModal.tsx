@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { formatDate, getWeekDates, isToday } from '@/lib/time'
-import { useTemplateStore, type TemplateData } from '@/store/templateStore'
+import { formatDate, getWeekDates } from '@/lib/time'
+import { useTemplateStore } from '@/store/templateStore'
 
 interface TemplateModalProps {
   currentDate: Date
@@ -10,11 +10,12 @@ interface TemplateModalProps {
 }
 
 export function TemplateModal({ currentDate, onClose }: TemplateModalProps) {
-  const { templates, createFromWeek, applyToWeek, deleteTemplate } = useTemplateStore()
+  const { templates, createFromWeek, applyToDateRange, deleteTemplate } = useTemplateStore()
   const [newTemplateName, setNewTemplateName] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [showApply, setShowApply] = useState<string | null>(null)
-  const [applyDate, setApplyDate] = useState(formatDate(currentDate))
+  const [applyStartDate, setApplyStartDate] = useState(formatDate(currentDate))
+  const [applyEndDate, setApplyEndDate] = useState(formatDate(currentDate))
 
   const weekStart = getWeekDates(currentDate)[0]
 
@@ -26,11 +27,17 @@ export function TemplateModal({ currentDate, onClose }: TemplateModalProps) {
   }
 
   const handleApply = (templateId: string) => {
-    const date = new Date(applyDate)
-    const weekStart = getWeekDates(date)[0]
-    const success = applyToWeek(templateId, weekStart)
-    if (!success) {
-      alert('部分功能区因重叠未能创建，请检查目标日期是否已有功能区')
+    const start = new Date(applyStartDate)
+    const end = new Date(applyEndDate)
+    if (end < start) {
+      alert('结束日期不能早于开始日期')
+      return
+    }
+    const { success, failed } = applyToDateRange(templateId, start, end)
+    if (failed > 0) {
+      alert(`应用完成：${success}周成功，${failed}周因重叠部分跳过`)
+    } else {
+      alert(`应用完成：${success}周全部成功`)
     }
     setShowApply(null)
     onClose()
@@ -124,7 +131,8 @@ export function TemplateModal({ currentDate, onClose }: TemplateModalProps) {
                 <button
                   onClick={() => {
                     setShowApply(tpl.id)
-                    setApplyDate(formatDate(currentDate))
+                    setApplyStartDate(formatDate(currentDate))
+                    setApplyEndDate(formatDate(currentDate))
                   }}
                   className="flex-1 py-1.5 text-xs font-medium bg-primary/10 text-primary rounded-md hover:bg-primary/20 transition-colors"
                 >
@@ -144,17 +152,28 @@ export function TemplateModal({ currentDate, onClose }: TemplateModalProps) {
 
               {showApply === tpl.id && (
                 <div className="mt-3 pt-3 border-t border-border space-y-2">
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">选择目标周的任意一天</label>
-                    <input
-                      type="date"
-                      value={applyDate}
-                      onChange={(e) => setApplyDate(e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">开始日期</label>
+                      <input
+                        type="date"
+                        value={applyStartDate}
+                        onChange={(e) => setApplyStartDate(e.target.value)}
+                        className="w-full px-2 py-1.5 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">结束日期</label>
+                      <input
+                        type="date"
+                        value={applyEndDate}
+                        onChange={(e) => setApplyEndDate(e.target.value)}
+                        className="w-full px-2 py-1.5 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                    </div>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    将应用到该日期所在的周一至周日
+                    将应用到该区间内每一周（周一至周日），已有功能区的日期会自动跳过重叠部分
                   </div>
                   <div className="flex gap-2">
                     <button
