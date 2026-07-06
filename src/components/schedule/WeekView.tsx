@@ -8,6 +8,7 @@ import { TimeRuler } from './TimeRuler'
 import { DayColumn } from './DayColumn'
 import { TaskPanel } from './TaskPanel'
 import { useTaskStore, PRIORITY_CONFIG } from '@/store/taskStore'
+import { useTimeBlockStore } from '@/store/timeBlockStore'
 
 interface WeekViewProps {
   hourHeight?: number
@@ -16,7 +17,8 @@ interface WeekViewProps {
 export function WeekView({ hourHeight = 60 }: WeekViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
-  const { tasks, assignToBlock } = useTaskStore()
+  const { tasks, assignToBlock, canAssignToBlock } = useTaskStore()
+  const { blocks: timeBlocks } = useTimeBlockStore()
   const weekDates = getWeekDates(currentDate)
 
   const sensors = useSensors(
@@ -44,6 +46,15 @@ export function WeekView({ hourHeight = 60 }: WeekViewProps) {
 
     const blockId = overData.blockId
     const taskId = active.id as string
+
+    const targetBlock = timeBlocks.find((b) => b.id === blockId)
+    if (!targetBlock) return
+
+    const blockDuration = targetBlock.endTime - targetBlock.startTime
+
+    if (!canAssignToBlock(taskId, blockId, blockDuration)) {
+      return
+    }
 
     const blockTasks = tasks.filter((t) => t.timeBlockId === blockId)
     const maxPos = blockTasks.length > 0

@@ -56,7 +56,9 @@ export function DayColumn({ date, hourHeight = 60 }: DayColumnProps) {
   return (
     <div
       ref={containerRef}
-      className="relative flex-1 min-w-[120px] border-r border-border last:border-r-0"
+      className={`relative flex-1 min-w-[120px] border-r border-border last:border-r-0 ${
+        today ? 'bg-green-500/[0.03]' : ''
+      }`}
       style={{ height: hourHeight * 24 }}
       onDoubleClick={handleDoubleClick}
       onMouseDown={(e) => {
@@ -65,6 +67,9 @@ export function DayColumn({ date, hourHeight = 60 }: DayColumnProps) {
         }
       }}
     >
+      {today && (
+        <div className="absolute inset-0 pointer-events-none border-2 border-green-400/60 rounded-sm z-[1]" />
+      )}
       {hours.map((hour) => (
         <div
           key={hour}
@@ -74,7 +79,7 @@ export function DayColumn({ date, hourHeight = 60 }: DayColumnProps) {
       ))}
 
       {dayBlocks.map((block) => (
-        <TimeBlockItem key={block.id} block={block} hourHeight={hourHeight} />
+        <TimeBlockItem key={block.id} block={block} hourHeight={hourHeight} isTodayColumn={today} />
       ))}
 
       {today && (

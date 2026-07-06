@@ -30,6 +30,8 @@ interface TaskStore {
   toggleComplete: (taskId: string) => void
   getTasksByBlock: (blockId: string) => TaskData[]
   getUnscheduledTasks: () => TaskData[]
+  canAssignToBlock: (taskId: string, blockId: string, blockDuration: number) => boolean
+  getBlockTaskDuration: (blockId: string) => number
 }
 
 function genId(): string {
@@ -103,5 +105,23 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 
   getUnscheduledTasks: () => {
     return get().tasks.filter((t) => t.timeBlockId === null && !t.completed)
+  },
+
+  getBlockTaskDuration: (blockId) => {
+    return get()
+      .tasks.filter((t) => t.timeBlockId === blockId && !t.completed)
+      .reduce((sum, t) => sum + t.duration, 0)
+  },
+
+  canAssignToBlock: (taskId, blockId, blockDuration) => {
+    const task = get().tasks.find((t) => t.id === taskId)
+    if (!task) return false
+
+    const otherTasksInBlock = get().tasks.filter(
+      (t) => t.timeBlockId === blockId && t.id !== taskId && !t.completed
+    )
+    const otherDuration = otherTasksInBlock.reduce((sum, t) => sum + t.duration, 0)
+
+    return otherDuration + task.duration <= blockDuration
   },
 }))

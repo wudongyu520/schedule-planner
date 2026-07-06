@@ -1,21 +1,80 @@
 'use client'
 
 import { useRef, useState, useCallback, type MouseEvent, useEffect } from 'react'
-import { useDroppable } from '@dnd-kit/core'
-import { MINUTES_IN_DAY, minutesToTime, timeToMinutes, snapToGrid, roundToGranularity } from '@/lib/time'
+import { useDroppable, useDraggable } from '@dnd-kit/core'
+import { MINUTES_IN_DAY, minutesToTime, timeToMinutes, snapToGrid, roundToGranularity, isToday } from '@/lib/time'
 import { useTimeBlockStore, type TimeBlockData, BLOCK_COLORS } from '@/store/timeBlockStore'
-import { useTaskStore, PRIORITY_CONFIG } from '@/store/taskStore'
+import { useTaskStore, PRIORITY_CONFIG, type TaskData } from '@/store/taskStore'
+import { TaskEditModal } from './TaskEditModal'
+import type { Priority } from '@/types/task'
 
 interface TimeBlockItemProps {
   block: TimeBlockData
   hourHeight: number
+  isTodayColumn?: boolean
 }
 
 type DragMode = 'move' | 'resize-top' | 'resize-bottom' | null
 
-export function TimeBlockItem({ block, hourHeight }: TimeBlockItemProps) {
+function BlockTaskItem({
+  task,
+  blockColor,
+  onEdit,
+}: {
+  task: TaskData
+  blockColor: string
+  onEdit: () => void
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: task.id,
+    data: { type: 'task', taskId: task.id, fromBlockId: task.timeBlockId },
+  })
+
+  const pCfg = PRIORITY_CONFIG[task.priority]
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] bg-background/90 border border-border/50 cursor-grab hover:shadow-sm transition-shadow ${
+        task.completed ? 'opacity-50' : ''
+      } ${isDragging ? 'opacity-30' : ''}`}
+      onDoubleClick={(e) => {
+        e.stopPropagation()
+        onEdit()
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <span
+        className="w-1.5 h-1.5 rounded-full shrink-0"
+        style={{ backgroundColor: task.priority === 'HIGH' ? '#ef4444' : task.priority === 'MEDIUM' ? '#f97316' : '#3b82f6' }}
+      />
+      <span className={`flex-1 truncate ${task.completed ? 'line-through' : ''}`}>
+        {task.title}
+      </span>
+      <span className="text-[10px] text-muted-foreground shrink-0">
+        {task.duration >= 60 ? `${Math.floor(task.duration / 60)}h${task.duration % 60 > 0 ? `${task.duration % 60}m` : ''}` : `${task.duration}m`}
+      </span>
+      <button
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation()
+          useTaskStore.getState().toggleComplete(task.id)
+        }}
+        className="shrink-0 text-muted-foreground hover:text-green-600 w-4 h-4 flex items-center justify-center rounded hover:bg-green-500/10"
+        title="标记完成"
+      >
+        {task.completed ? '↩' : '✓'}
+      </button>
+    </div>
+  )
+}
+
+export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: TimeBlockItemProps) {
   const { updateBlock, removeBlock, selectBlock, selectedBlockId } = useTimeBlockStore()
-  const { tasks, removeFromBlock, toggleComplete } = useTaskStore()
+  const { tasks, removeFromBlock, toggleComplete, updateTask, removeTask, assignToBlock, canAssignToBlock, getBlockTaskDuration } = useTaskStore()
   const dragMode = useRef<DragMode>(null)
   const dragStartY = useRef(0)
   const dragStartStart = useRef(0)
@@ -27,20 +86,39 @@ export function TimeBlockItem({ block, hourHeight }: TimeBlockItemProps) {
   const [editEnd, setEditEnd] = useState(minutesToTime(block.endTime))
   const [editColor, setEditColor] = useState(block.color)
   const editorRef = useRef<HTMLDivElement>(null)
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
 
-  const { isOver, setNodeRef } = useDroppable({
+  const { isOver, setNodeRef, active } = useDroppable({
     id: `droppable-${block.id}`,
     data: { type: 'block', blockId: block.id },
   })
-
-  const blockTasks = tasks
-    .filter((t) => t.timeBlockId === block.id)
-    .sort((a, b) => (a.blockPosition ?? 0) - (b.blockPosition ?? 0))
 
   const selected = selectedBlockId === block.id
 
   const topPercent = (block.startTime / MINUTES_IN_DAY) * 100
   const heightPercent = ((block.endTime - block.startTime) / MINUTES_IN_DAY) * 100
+
+  const blockDuration = block.endTime - block.startTime
+  const totalTaskDuration = getBlockTaskDuration(block.id)
+  const durationPercent = Math.min(100, (totalTaskDuration / blockDuration) * 100)
+  const isOverCapacity = totalTaskDuration > blockDuration
+
+  const blockTasks = tasks
+    .filter((t) => t.timeBlockId === block.id)
+    .filter((t) => {
+      if (!t.completed) return true
+      return isTodayColumn
+    })
+    .sort((a, b) => (a.blockPosition ?? 0) - (b.blockPosition ?? 0))
+
+  const completedCount = tasks.filter((t) => t.timeBlockId === block.id && t.completed).length
+  const totalCount = tasks.filter((t) => t.timeBlockId === block.id).length
+
+  const activeTaskId = active?.data.current?.taskId
+  const canDrop =
+    activeTaskId && active.data.current?.type === 'task'
+      ? canAssignToBlock(activeTaskId, block.id, blockDuration)
+      : false
 
   useEffect(() => {
     if (showEditor) {
@@ -146,22 +224,71 @@ export function TimeBlockItem({ block, hourHeight }: TimeBlockItemProps) {
 
   const handleDelete = () => {
     if (confirm(`删除"${block.name}"？`)) {
+      tasks.forEach((t) => {
+        if (t.timeBlockId === block.id) {
+          removeFromBlock(t.id)
+        }
+      })
       removeBlock(block.id)
       setShowEditor(false)
     }
+  }
+
+  const editingTask = editingTaskId ? tasks.find((t) => t.id === editingTaskId) : null
+
+  const handleSaveTaskEdit = (data: {
+    title: string
+    description: string | null
+    duration: number
+    priority: Priority
+  }) => {
+    if (!editingTaskId) return
+    if (editingTask?.timeBlockId) {
+      const bd = block.endTime - block.startTime
+      const otherDuration = tasks
+        .filter((t) => t.timeBlockId === editingTask.timeBlockId && t.id !== editingTaskId && !t.completed)
+        .reduce((s, t) => s + t.duration, 0)
+      if (otherDuration + data.duration > bd) {
+        alert('时长超过功能区总时长')
+        return
+      }
+    }
+    updateTask(editingTaskId, data)
+    setEditingTaskId(null)
+  }
+
+  const handleDeleteTaskEdit = () => {
+    if (!editingTaskId) return
+    removeTask(editingTaskId)
+    setEditingTaskId(null)
+  }
+
+  const formatDuration = (m: number) => {
+    if (m >= 60) {
+      const h = Math.floor(m / 60)
+      const min = m % 60
+      return min > 0 ? `${h}h${min}m` : `${h}h`
+    }
+    return `${m}m`
   }
 
   return (
     <>
       <div
         ref={setNodeRef}
-        className={`absolute left-1 right-1 rounded-md border-2 cursor-grab transition-shadow group ${
-          selected ? 'shadow-lg ring-2 ring-offset-1' : ''
-        } ${isDragging ? 'opacity-80' : ''} ${isOver ? 'ring-2 ring-primary ring-offset-1' : ''}`}
+        className={`absolute left-1 right-1 rounded-lg border-2 cursor-grab transition-all group ${
+          selected ? 'shadow-lg' : ''
+        } ${isDragging ? 'opacity-80' : ''} ${
+          isOver && canDrop
+            ? 'ring-2 ring-green-500 ring-offset-1 scale-[1.01]'
+            : isOver && !canDrop
+            ? 'ring-2 ring-red-500 ring-offset-1'
+            : ''
+        }`}
         style={{
           top: `${topPercent}%`,
           height: `${heightPercent}%`,
-          backgroundColor: `${block.color}25`,
+          backgroundColor: `${block.color}18`,
           borderColor: block.color,
           boxShadow: selected ? `0 0 0 2px ${block.color}40` : undefined,
         }}
@@ -176,91 +303,102 @@ export function TimeBlockItem({ block, hourHeight }: TimeBlockItemProps) {
         }}
       >
         <div
-          className="absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-4 rounded-full cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center justify-center"
+          className="absolute -top-2.5 left-1/2 -translate-x-1/2 w-10 h-5 rounded-full cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center justify-center shadow-sm"
           style={{ backgroundColor: block.color }}
           onMouseDown={handleMouseDown('resize-top')}
         >
-          <div className="w-3 h-0.5 rounded-full bg-white/60" />
+          <div className="w-4 h-0.5 rounded-full bg-white/70" />
         </div>
 
         <div
-          className="absolute top-0 left-0 right-0 h-3 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
+          className="absolute top-0 left-0 right-0 h-4 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity z-[5]"
           onMouseDown={handleMouseDown('resize-top')}
         />
 
-        <div className="px-2 pt-2 pb-1">
-          <div className="text-xs font-semibold truncate pointer-events-none" style={{ color: block.color }}>
-            {block.name}
+        <div className="px-2.5 pt-2 pb-1.5 h-full flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between shrink-0">
+            <div className="text-xs font-bold truncate" style={{ color: block.color }}>
+              {block.name}
+            </div>
+            <div className="text-[10px] font-medium text-muted-foreground shrink-0 ml-1">
+              <span className={completedCount > 0 ? 'text-green-600' : ''}>{completedCount}</span>
+              <span className="text-muted-foreground/50">/</span>
+              <span>{totalCount}</span>
+            </div>
           </div>
-          <div className="text-[10px] text-muted-foreground mt-0.5 pointer-events-none">
+          <div className="text-[10px] text-muted-foreground mt-0.5 shrink-0">
             {minutesToTime(block.startTime)} - {minutesToTime(block.endTime)}
           </div>
 
+          <div className="mt-1.5 shrink-0">
+            <div className="flex items-center justify-between text-[10px] mb-0.5">
+              <span className="text-muted-foreground">
+                {formatDuration(totalTaskDuration)} / {formatDuration(blockDuration)}
+              </span>
+              <span className={isOverCapacity ? 'text-red-500 font-medium' : 'text-muted-foreground'}>
+                {Math.round(durationPercent)}%
+              </span>
+            </div>
+            <div className="h-1 bg-background/60 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${isOverCapacity ? 'bg-red-500' : ''}`}
+                style={{
+                  width: `${durationPercent}%`,
+                  backgroundColor: isOverCapacity ? undefined : block.color,
+                }}
+              />
+            </div>
+          </div>
+
           {blockTasks.length > 0 && (
-            <div className="mt-1.5 space-y-1">
-              {blockTasks.map((task) => {
-                const pCfg = PRIORITY_CONFIG[task.priority]
-                return (
-                  <div
-                    key={task.id}
-                    className={`flex items-center gap-1 px-1.5 py-1 rounded text-[11px] bg-background/80 ${task.completed ? 'opacity-50 line-through' : ''}`}
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${pCfg.bg.replace('/15', '')}`} style={{ backgroundColor: task.priority === 'HIGH' ? '#ef4444' : task.priority === 'MEDIUM' ? '#f97316' : '#3b82f6' }} />
-                    <span className="flex-1 truncate">{task.title}</span>
-                    <button
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        toggleComplete(task.id)
-                      }}
-                      className="shrink-0 text-muted-foreground hover:text-green-600"
-                      title="标记完成"
-                    >
-                      {task.completed ? '↩' : '✓'}
-                    </button>
-                    <button
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        removeFromBlock(task.id)
-                      }}
-                      className="shrink-0 text-muted-foreground hover:text-destructive"
-                      title="移出功能区"
-                    >
-                      ×
-                    </button>
-                  </div>
-                )
-              })}
+            <div className="mt-2 space-y-1 overflow-y-auto flex-1 pr-0.5 -mr-0.5">
+              {blockTasks.map((task) => (
+                <BlockTaskItem
+                  key={task.id}
+                  task={task}
+                  blockColor={block.color}
+                  onEdit={() => setEditingTaskId(task.id)}
+                />
+              ))}
             </div>
           )}
 
-          {isOver && (
-            <div className="mt-1 px-1.5 py-1 rounded text-[10px] text-center border border-dashed border-primary text-primary">
-              放置任务到此
+          {blockTasks.length === 0 && !isOver && (
+            <div className="flex-1 flex items-center justify-center">
+              <span className="text-[10px] text-muted-foreground/60">拖拽任务到这里</span>
+            </div>
+          )}
+
+          {isOver && activeTaskId && (
+            <div
+              className={`mt-2 px-2 py-1.5 rounded-md text-[10px] text-center border border-dashed ${
+                canDrop
+                  ? 'border-green-500 text-green-600 bg-green-500/10'
+                  : 'border-red-500 text-red-600 bg-red-500/10'
+              }`}
+            >
+              {canDrop ? '松开放置任务' : '时长不足，无法放置'}
             </div>
           )}
         </div>
 
         <div
-          className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
+          className="absolute bottom-0 left-0 right-0 h-4 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity z-[5]"
           onMouseDown={handleMouseDown('resize-bottom')}
         />
 
         <div
-          className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-8 h-4 rounded-full cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center justify-center"
+          className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-10 h-5 rounded-full cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center justify-center shadow-sm"
           style={{ backgroundColor: block.color }}
           onMouseDown={handleMouseDown('resize-bottom')}
         >
-          <div className="w-3 h-0.5 rounded-full bg-white/60" />
+          <div className="w-4 h-0.5 rounded-full bg-white/70" />
         </div>
       </div>
 
       {showEditor && (
         <div
-          className="fixed z-50 w-56 p-3 bg-background rounded-lg shadow-xl border border-border"
+          className="fixed z-50 w-64 p-4 bg-background rounded-xl shadow-2xl border border-border"
           style={{
             left: '50%',
             top: '50%',
@@ -279,7 +417,7 @@ export function TimeBlockItem({ block, hourHeight }: TimeBlockItemProps) {
                 type="text"
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                className="w-full px-2 py-1.5 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                className="w-full px-2.5 py-1.5 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
 
@@ -291,7 +429,7 @@ export function TimeBlockItem({ block, hourHeight }: TimeBlockItemProps) {
                   value={editStart}
                   onChange={(e) => setEditStart(e.target.value)}
                   step={300}
-                  className="w-full px-2 py-1.5 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                  className="w-full px-2.5 py-1.5 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
               <div>
@@ -301,19 +439,19 @@ export function TimeBlockItem({ block, hourHeight }: TimeBlockItemProps) {
                   value={editEnd}
                   onChange={(e) => setEditEnd(e.target.value)}
                   step={300}
-                  className="w-full px-2 py-1.5 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                  className="w-full px-2.5 py-1.5 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">颜色</label>
-              <div className="flex gap-1.5">
+              <label className="text-xs text-muted-foreground mb-1.5 block">颜色</label>
+              <div className="flex gap-2">
                 {BLOCK_COLORS.map((c) => (
                   <button
                     key={c.value}
                     onClick={() => setEditColor(c.value)}
-                    className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${
+                    className={`w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 ${
                       editColor === c.value ? 'border-foreground scale-110' : 'border-transparent'
                     }`}
                     style={{ backgroundColor: c.value }}
@@ -323,22 +461,41 @@ export function TimeBlockItem({ block, hourHeight }: TimeBlockItemProps) {
               </div>
             </div>
 
-            <div className="flex gap-2 pt-2">
+            <div className="flex gap-2 pt-1">
               <button
                 onClick={handleSave}
-                className="flex-1 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                className="flex-1 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
               >
                 保存
               </button>
               <button
                 onClick={handleDelete}
-                className="px-3 py-1.5 text-xs font-medium text-destructive border border-destructive/30 rounded-md hover:bg-destructive/10 transition-colors"
+                className="px-3 py-1.5 text-xs font-medium text-destructive border border-destructive/30 rounded-lg hover:bg-destructive/10 transition-colors"
               >
                 删除
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {editingTask && (
+        <TaskEditModal
+          mode="edit"
+          initialTitle={editingTask.title}
+          initialDescription={editingTask.description}
+          initialDuration={editingTask.duration}
+          initialPriority={editingTask.priority}
+          initialTimeBlockId={editingTask.timeBlockId}
+          onSave={handleSaveTaskEdit}
+          onClose={() => setEditingTaskId(null)}
+          onDelete={handleDeleteTaskEdit}
+          onMoveOut={() => {
+            if (!editingTaskId) return
+            removeFromBlock(editingTaskId)
+            setEditingTaskId(null)
+          }}
+        />
       )}
     </>
   )
