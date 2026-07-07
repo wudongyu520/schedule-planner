@@ -7,7 +7,7 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 FROM base AS deps
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
-RUN CI=true pnpm install --frozen-lockfile --unsafe-perm --allow-scripts
+RUN CI=true PNPM_ALLOW_SCRIPTS=true pnpm install --frozen-lockfile --unsafe-perm
 
 # 构建阶段
 FROM base AS builder
