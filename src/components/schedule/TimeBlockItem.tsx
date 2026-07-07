@@ -2,7 +2,7 @@
 
 import { useRef, useState, useCallback, type MouseEvent, useEffect } from 'react'
 import { useDroppable, useDraggable } from '@dnd-kit/core'
-import { MINUTES_IN_DAY, minutesToTime, timeToMinutes, snapToGrid, roundToGranularity, isToday } from '@/lib/time'
+import { MINUTES_IN_DAY, VIEW_START_MINUTES, VIEW_END_MINUTES, VIEW_DURATION, minutesToTime, timeToMinutes, snapToGrid, roundToGranularity, isToday } from '@/lib/time'
 import { useTimeBlockStore, type TimeBlockData, BLOCK_COLORS } from '@/store/timeBlockStore'
 import { useTaskStore, PRIORITY_CONFIG, type TaskData } from '@/store/taskStore'
 import { TaskEditModal } from './TaskEditModal'
@@ -119,12 +119,14 @@ function BlockTaskItem({
 }
 
 export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: TimeBlockItemProps) {
-  const { updateBlock, removeBlock, selectBlock, selectedBlockId, toggleLock } = useTimeBlockStore()
+  const { updateBlock, updateBlockLocal, syncBlock, removeBlock, selectBlock, selectedBlockId, toggleLock, copyBlock, duplicateBlock } = useTimeBlockStore()
   const { tasks, removeFromBlock, toggleComplete, updateTask, removeTask, assignToBlock, canAssignToBlock, getBlockTaskDuration } = useTaskStore()
   const dragMode = useRef<DragMode>(null)
   const dragStartY = useRef(0)
   const dragStartStart = useRef(0)
   const dragStartEnd = useRef(0)
+  const rafRef = useRef<number | null>(null)
+  const pendingDelta = useRef(0)
   const [isDragging, setIsDragging] = useState(false)
   const [showEditor, setShowEditor] = useState(false)
   const [editName, setEditName] = useState(block.name)
@@ -133,6 +135,7 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: Time
   const [editColor, setEditColor] = useState(block.color)
   const editorRef = useRef<HTMLDivElement>(null)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
+  const [blockContextMenu, setBlockContextMenu] = useState<{ x: number; y: number } | null>(null)
 
   const { isOver, setNodeRef, active } = useDroppable({
     id: `droppable-${block.id}`,
@@ -141,8 +144,12 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: Time
 
   const selected = selectedBlockId === block.id
 
-  const topPercent = (block.startTime / MINUTES_IN_DAY) * 100
-  const heightPercent = ((block.endTime - block.startTime) / MINUTES_IN_DAY) * 100
+  const visibleStart = Math.max(block.startTime, VIEW_START_MINUTES)
+  const visibleEnd = Math.min(block.endTime, VIEW_END_MINUTES)
+  const isFullyOutsideView = visibleStart >= visibleEnd
+
+  const topPercent = ((visibleStart - VIEW_START_MINUTES) / VIEW_DURATION) * 100
+  const heightPercent = ((visibleEnd - visibleStart) / VIEW_DURATION) * 100
 
   const blockDuration = block.endTime - block.startTime
   const totalTaskDuration = getBlockTaskDuration(block.id)
@@ -197,39 +204,53 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: Time
       setIsDragging(true)
       selectBlock(block.id)
 
-      const handleMouseMove = (moveEvent: globalThis.MouseEvent) => {
-        if (!dragMode.current) return
-
-        const deltaY = moveEvent.clientY - dragStartY.current
-        const deltaMinutes = roundToGranularity((deltaY / hourHeight) * 60)
+      const applyDelta = () => {
+        rafRef.current = null
+        const deltaMinutes = roundToGranularity((pendingDelta.current / hourHeight) * 60)
 
         if (dragMode.current === 'move') {
           const duration = dragStartEnd.current - dragStartStart.current
           let newStart = dragStartStart.current + deltaMinutes
           let newEnd = newStart + duration
 
-          if (newStart < 0) {
-            newStart = 0
-            newEnd = duration
+          if (newStart < VIEW_START_MINUTES) {
+            newStart = VIEW_START_MINUTES
+            newEnd = duration + VIEW_START_MINUTES
           }
           if (newEnd > MINUTES_IN_DAY) {
             newEnd = MINUTES_IN_DAY
             newStart = MINUTES_IN_DAY - duration
           }
 
-          updateBlock(block.id, { startTime: newStart, endTime: newEnd })
+          updateBlockLocal(block.id, { startTime: newStart, endTime: newEnd })
         } else if (dragMode.current === 'resize-top') {
           let newStart = dragStartStart.current + deltaMinutes
-          newStart = Math.max(0, Math.min(newStart, dragStartEnd.current - 5))
-          updateBlock(block.id, { startTime: newStart })
+          newStart = Math.max(VIEW_START_MINUTES, Math.min(newStart, dragStartEnd.current - 5))
+          updateBlockLocal(block.id, { startTime: newStart })
         } else if (dragMode.current === 'resize-bottom') {
           let newEnd = dragStartEnd.current + deltaMinutes
           newEnd = Math.max(dragStartStart.current + 5, Math.min(newEnd, MINUTES_IN_DAY))
-          updateBlock(block.id, { endTime: newEnd })
+          updateBlockLocal(block.id, { endTime: newEnd })
+        }
+      }
+
+      const handleMouseMove = (moveEvent: globalThis.MouseEvent) => {
+        if (!dragMode.current) return
+        pendingDelta.current = moveEvent.clientY - dragStartY.current
+        if (rafRef.current === null) {
+          rafRef.current = requestAnimationFrame(applyDelta)
         }
       }
 
       const handleMouseUp = () => {
+        if (rafRef.current !== null) {
+          cancelAnimationFrame(rafRef.current)
+          rafRef.current = null
+        }
+        // 最后应用一次确保位置准确
+        applyDelta()
+        // 松手时同步到数据库
+        syncBlock(block.id)
         dragMode.current = null
         setIsDragging(false)
         document.removeEventListener('mousemove', handleMouseMove)
@@ -243,7 +264,7 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: Time
       document.body.style.cursor = mode === 'move' ? 'grabbing' : 'ns-resize'
       document.body.style.userSelect = 'none'
     },
-    [block, hourHeight, updateBlock, selectBlock, block.locked]
+    [block, hourHeight, updateBlockLocal, syncBlock, selectBlock, block.locked]
   )
 
   const handleSave = () => {
@@ -316,6 +337,10 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: Time
     return `${m}m`
   }
 
+  if (isFullyOutsideView) {
+    return null
+  }
+
   return (
     <>
       <div
@@ -344,6 +369,11 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: Time
         onDoubleClick={(e) => {
           e.stopPropagation()
           setShowEditor(true)
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setBlockContextMenu({ x: e.clientX, y: e.clientY })
         }}
       >
         {!block.locked && (
@@ -550,6 +580,67 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: Time
             </div>
           </div>
         </div>
+      )}
+
+      {blockContextMenu && (
+        <ContextMenu
+          items={[
+            {
+              label: '复制',
+              icon: '⧉',
+              onClick: () => {
+                copyBlock(block.id)
+                setBlockContextMenu(null)
+              },
+            },
+            {
+              label: '复制副本',
+              icon: '⎘',
+              onClick: () => {
+                const newId = duplicateBlock(block.id)
+                if (!newId) alert('下方空间不足，无法创建副本')
+                setBlockContextMenu(null)
+              },
+            },
+            { label: '', separator: true, onClick: () => {} },
+            {
+              label: block.locked ? '解锁' : '锁定',
+              icon: block.locked ? '🔓' : '🔒',
+              onClick: () => {
+                toggleLock(block.id)
+                setBlockContextMenu(null)
+              },
+            },
+            {
+              label: '编辑',
+              icon: '✎',
+              onClick: () => {
+                setShowEditor(true)
+                setBlockContextMenu(null)
+              },
+            },
+            { label: '', separator: true, onClick: () => {} },
+            {
+              label: '删除',
+              icon: '✕',
+              danger: true,
+              onClick: () => {
+                if (confirm(`删除"${block.name}"？`)) {
+                  tasks.forEach((t) => {
+                    if (t.timeBlockId === block.id) {
+                      removeFromBlock(t.id)
+                    }
+                  })
+                  removeBlock(block.id)
+                }
+                setBlockContextMenu(null)
+              },
+            },
+          ]}
+          x={blockContextMenu.x}
+          y={blockContextMenu.y}
+          onClose={() => setBlockContextMenu(null)}
+        />
       )}
 
       {editingTask && (

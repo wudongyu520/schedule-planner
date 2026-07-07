@@ -1,23 +1,23 @@
 'use client'
 
-import { MINUTES_IN_DAY, minutesToTime } from '@/lib/time'
+import { VIEW_START_MINUTES, VIEW_DURATION, minutesToTime } from '@/lib/time'
 
 interface TimeRulerProps {
   hourHeight?: number
 }
 
-export function TimeRuler({ hourHeight = 60 }: TimeRulerProps) {
-  const hours = Array.from({ length: 25 }, (_, i) => i)
+export function TimeRuler({ hourHeight = 180 }: TimeRulerProps) {
+  // 6:00 到 24:00，共 18 个小时刻度 + 末尾 24:00
+  const hours = Array.from({ length: 19 }, (_, i) => i + 6)
 
   return (
     <div
       className="relative w-16 shrink-0 border-r border-border bg-muted/30"
-      style={{ height: hourHeight * 24 }}
+      style={{ height: hourHeight * 18 }}
     >
       {hours.map((hour) => {
         const minutes = hour * 60
-        const top = (minutes / MINUTES_IN_DAY) * 100
-        const isHalfHour = false
+        const top = ((minutes - VIEW_START_MINUTES) / VIEW_DURATION) * 100
 
         return (
           <div

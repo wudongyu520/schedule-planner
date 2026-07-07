@@ -1,5 +1,8 @@
 export const MINUTES_IN_DAY = 1440
 export const TIME_GRANULARITY = 5
+export const VIEW_START_MINUTES = 360 // 6:00
+export const VIEW_END_MINUTES = MINUTES_IN_DAY // 24:00
+export const VIEW_DURATION = VIEW_END_MINUTES - VIEW_START_MINUTES // 1080 minutes = 18 hours
 
 export function minutesToTime(minutes: number): string {
   const h = Math.floor(minutes / 60)

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { formatDate, snapToGrid, checkOverlap, type TimeRange } from '@/lib/time'
+import { formatDate, snapToGrid, checkOverlap, type TimeRange, MINUTES_IN_DAY, VIEW_START_MINUTES } from '@/lib/time'
 
 export interface TimeBlockData {
   id: string
@@ -24,14 +24,20 @@ interface TimeBlockStore {
   blocks: TimeBlockData[]
   selectedBlockId: string | null
   loaded: boolean
+  clipboardBlock: TimeBlockData | null
 
   loadFromDB: () => Promise<void>
   addBlock: (date: string, startTime: number, endTime: number) => string | null
   updateBlock: (id: string, updates: Partial<Omit<TimeBlockData, 'id'>>) => boolean
+  updateBlockLocal: (id: string, updates: Partial<Omit<TimeBlockData, 'id'>>) => boolean
+  syncBlock: (id: string) => void
   removeBlock: (id: string) => void
   selectBlock: (id: string | null) => void
   getBlocksByDate: (date: string) => TimeBlockData[]
   toggleLock: (id: string) => void
+  copyBlock: (id: string) => void
+  pasteBlock: (date: string, targetStartTime?: number) => string | null
+  duplicateBlock: (id: string) => string | null
 }
 
 function genId(): string {
@@ -70,6 +76,7 @@ export const useTimeBlockStore = create<TimeBlockStore>((set, get) => ({
   blocks: [],
   selectedBlockId: null,
   loaded: false,
+  clipboardBlock: null,
 
   loadFromDB: async () => {
     try {
@@ -137,6 +144,47 @@ export const useTimeBlockStore = create<TimeBlockStore>((set, get) => ({
     return true
   },
 
+  updateBlockLocal: (id, updates) => {
+    const state = get()
+    const block = state.blocks.find((b) => b.id === id)
+    if (!block) return false
+
+    if (block.locked && (updates.startTime !== undefined || updates.endTime !== undefined)) {
+      return false
+    }
+
+    const newStart = updates.startTime !== undefined ? snapToGrid(updates.startTime) : block.startTime
+    const newEnd = updates.endTime !== undefined ? snapToGrid(updates.endTime) : block.endTime
+
+    if (newEnd - newStart < 5) return false
+
+    if (updates.startTime !== undefined || updates.endTime !== undefined) {
+      const otherBlocks = state.blocks.filter((b) => b.id !== id && b.date === block.date)
+      const newRange: TimeRange = { startTime: newStart, endTime: newEnd }
+      const hasOverlap = otherBlocks.some((b) => checkOverlap(b, newRange))
+      if (hasOverlap) return false
+    }
+
+    set((state) => ({
+      blocks: state.blocks.map((b) =>
+        b.id === id ? { ...b, ...updates, startTime: newStart, endTime: newEnd } : b
+      ),
+    }))
+    return true
+  },
+
+  syncBlock: (id) => {
+    const block = get().blocks.find((b) => b.id === id)
+    if (!block) return
+    apiPut(`/api/blocks/${id}`, {
+      name: block.name,
+      startTime: block.startTime,
+      endTime: block.endTime,
+      color: block.color,
+      locked: block.locked,
+    })
+  },
+
   removeBlock: (id) => {
     set((state) => ({
       blocks: state.blocks.filter((b) => b.id !== id),
@@ -161,5 +209,74 @@ export const useTimeBlockStore = create<TimeBlockStore>((set, get) => ({
       ),
     }))
     apiPut(`/api/blocks/${id}`, { locked: newLocked })
+  },
+
+  copyBlock: (id) => {
+    const block = get().blocks.find((b) => b.id === id)
+    if (!block) return
+    set({ clipboardBlock: { ...block } })
+  },
+
+  pasteBlock: (date, targetStartTime) => {
+    const clipboard = get().clipboardBlock
+    if (!clipboard) return null
+
+    const duration = clipboard.endTime - clipboard.startTime
+    const startTime = targetStartTime !== undefined
+      ? snapToGrid(targetStartTime)
+      : clipboard.startTime
+    const endTime = snapToGrid(startTime + duration)
+
+    if (endTime > MINUTES_IN_DAY) return null
+
+    const existingBlocks = get().blocks.filter((b) => b.date === date)
+    const newRange: TimeRange = { startTime, endTime }
+    const hasOverlap = existingBlocks.some((b) => checkOverlap(b, newRange))
+    if (hasOverlap) return null
+
+    const id = genId()
+    const block: TimeBlockData = {
+      id,
+      date,
+      name: clipboard.name,
+      color: clipboard.color,
+      startTime,
+      endTime,
+      locked: false,
+    }
+
+    set((state) => ({ blocks: [...state.blocks, block] }))
+    apiPost('/api/blocks', block)
+    return id
+  },
+
+  duplicateBlock: (id) => {
+    const block = get().blocks.find((b) => b.id === id)
+    if (!block) return null
+
+    const duration = block.endTime - block.startTime
+    const targetStartTime = block.endTime + 5
+
+    if (targetStartTime + duration > MINUTES_IN_DAY) return null
+
+    const existingBlocks = get().blocks.filter((b) => b.date === block.date)
+    const newRange: TimeRange = { startTime: targetStartTime, endTime: targetStartTime + duration }
+    const hasOverlap = existingBlocks.some((b) => b.id !== id && checkOverlap(b, newRange))
+    if (hasOverlap) return null
+
+    const newId = genId()
+    const newBlock: TimeBlockData = {
+      id: newId,
+      date: block.date,
+      name: `${block.name} (副本)`,
+      color: block.color,
+      startTime: targetStartTime,
+      endTime: targetStartTime + duration,
+      locked: false,
+    }
+
+    set((state) => ({ blocks: [...state.blocks, newBlock] }))
+    apiPost('/api/blocks', newBlock)
+    return newId
   },
 }))

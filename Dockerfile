@@ -2,7 +2,6 @@
 # 阶段 1: 安装依赖并生成 Prisma Client
 # ==========================================
 FROM node:22-alpine AS deps
-# Alpine 镜像必须安装 libc6-compat 才能正常运行 Prisma Engine
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -22,32 +21,41 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# 在打包前必须注入环境变量（如果你的 build 过程需要连接数据库验证）
-# 或者在 schema.prisma 里确保没有强依赖 build 时的数据库连接
 RUN npx prisma generate
 RUN npm run build
 
 # ==========================================
-# 阶段 3: 最终运行镜像（体积最小）
+# 阶段 3: 最终运行镜像
 # ==========================================
 FROM node:22-alpine AS runner
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# 增加安全安全性，不使用 root 用户运行
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# 仅复制 Standalone 模式所需的最小产物
-COPY --from=builder /app/public ./public
+# 复制 standalone 产物
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+
+# 复制 Prisma 相关文件（用于 db push）
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+
+# 创建启动脚本
+COPY --chown=nextjs:nodejs start.sh ./start.sh
+RUN chmod +x ./start.sh
 
 USER nextjs
 
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD ["sh", "./start.sh"]

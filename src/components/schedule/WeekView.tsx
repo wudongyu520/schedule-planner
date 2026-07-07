@@ -34,7 +34,7 @@ interface WeekViewProps {
   hourHeight?: number
 }
 
-export function WeekView({ hourHeight = 60 }: WeekViewProps) {
+export function WeekView({ hourHeight = 180 }: WeekViewProps) {
   const ready = useDataInit()
   useTaskExpiration()
 
