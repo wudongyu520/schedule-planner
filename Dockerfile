@@ -10,7 +10,7 @@ COPY package*.json ./
 COPY prisma ./prisma/
 
 RUN npm config set registry https://registry.npmmirror.com/ && \
-    npm ci
+    npm install
 
 # ==========================================
 # 阶段 2: 构建 Next.js 项目
