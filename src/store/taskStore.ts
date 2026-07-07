@@ -185,17 +185,21 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 
   getUnscheduledTasks: () => {
     const { tasks, sortMode } = get()
-    const unscheduled = tasks.filter((t) => t.timeBlockId === null && !t.completed)
-    switch (sortMode) {
-      case 'priority':
-        return unscheduled.sort((a, b) => PRIORITY_WEIGHT[a.priority] - PRIORITY_WEIGHT[b.priority])
-      case 'duration':
-        return unscheduled.sort((a, b) => b.duration - a.duration)
-      case 'title':
-        return unscheduled.sort((a, b) => a.title.localeCompare(b.title))
-      default:
-        return unscheduled
-    }
+    const unscheduled = tasks.filter((t) => t.timeBlockId === null)
+    const sorted = unscheduled.sort((a, b) => {
+      if (a.completed !== b.completed) return a.completed ? 1 : -1
+      switch (sortMode) {
+        case 'priority':
+          return PRIORITY_WEIGHT[a.priority] - PRIORITY_WEIGHT[b.priority]
+        case 'duration':
+          return b.duration - a.duration
+        case 'title':
+          return a.title.localeCompare(b.title)
+        default:
+          return 0
+      }
+    })
+    return sorted
   },
 
   getBlockTaskDuration: (blockId) => {

@@ -151,10 +151,6 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: Time
 
   const blockTasks = tasks
     .filter((t) => t.timeBlockId === block.id)
-    .filter((t) => {
-      if (!t.completed) return true
-      return isTodayColumn
-    })
     .sort((a, b) => (a.blockPosition ?? 0) - (b.blockPosition ?? 0))
 
   const completedCount = tasks.filter((t) => t.timeBlockId === block.id && t.completed).length

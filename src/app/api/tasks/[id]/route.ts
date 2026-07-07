@@ -29,6 +29,7 @@ export async function PUT(
       color,
       timeBlockId,
       blockPosition,
+      completed,
       completedAt,
     } = body
 
@@ -42,6 +43,7 @@ export async function PUT(
     if (color !== undefined) data.color = color
     if (timeBlockId !== undefined) data.timeBlockId = timeBlockId
     if (blockPosition !== undefined) data.blockPosition = Number(blockPosition)
+    if (completed !== undefined) data.completed = completed
     if (completedAt !== undefined) {
       data.completedAt = completedAt ? new Date(completedAt) : null
     }

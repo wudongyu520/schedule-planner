@@ -40,6 +40,7 @@ model Task {
   timeBlockId    String?
   blockPosition  Int?
 
+  completed      Boolean   @default(false)
   completedAt    DateTime?
 
   createdAt      DateTime  @default(now())
