@@ -1,0 +1,38 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches: [main, master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Package
+        run: tar -czf deploy.tar.gz --exclude='node_modules' --exclude='.next' --exclude='.git' --exclude='*.log' .
+
+      - name: Upload to Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "deploy.tar.gz"
+          target: "~/schedule-planner/"
+
+      - name: Deploy
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd ~/schedule-planner
+            tar -xzf deploy.tar.gz
+            rm deploy.tar.gz
+            docker compose down -v
+            docker compose up -d --build
+            docker image prune -f

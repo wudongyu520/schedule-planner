@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
 
     const block = await prisma.timeBlock.create({
       data: {
+        id: body.id,
         userId,
         name,
         color,

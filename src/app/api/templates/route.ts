@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
 
     const template = await prisma.template.create({
       data: {
+        id: body.id,
         userId,
         name,
         description: description ?? null,
