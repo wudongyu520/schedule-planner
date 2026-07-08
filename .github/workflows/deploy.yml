@@ -12,10 +12,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Package
-        run: tar -czf deploy.tar.gz --exclude='node_modules' --exclude='.next' --exclude='.git' --exclude='*.log' .
+        run: git archive --format=tar.gz -o deploy.tar.gz HEAD
 
       - name: Upload to Server
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
@@ -33,6 +33,6 @@ jobs:
             cd ~/schedule-planner
             tar -xzf deploy.tar.gz
             rm deploy.tar.gz
-            docker compose down -v
+            docker compose down
             docker compose up -d --build
             docker image prune -f
