@@ -1,6 +1,7 @@
 'use client'
 
 import { getDayShortName, isToday, addDays } from '@/lib/time'
+import { useTimeBlockStore } from '@/store/timeBlockStore'
 
 export type ViewMode = 'day' | 'week' | 'month'
 
@@ -33,6 +34,8 @@ export function DateHeader({
 }: DateHeaderProps) {
   const startDate = weekDates[0]
   const endDate = weekDates[6]
+  const { blocks, toggleAllLock } = useTimeBlockStore()
+  const allLocked = blocks.every((b) => b.locked)
 
   const formatMonth = (date: Date) => {
     return `${date.getFullYear()}年${date.getMonth() + 1}月`
@@ -126,20 +129,34 @@ export function DateHeader({
             : `${formatMonth(startDate)} ${startDate.getDate()}日 - ${endDate.getMonth() + 1}月${endDate.getDate()}日`}
         </div>
 
-        <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
-          {(['day', 'week', 'month'] as ViewMode[]).map((mode) => (
-            <button
-              key={mode}
-              onClick={() => onViewModeChange(mode)}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
-                viewMode === mode
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {mode === 'day' ? '日' : mode === 'week' ? '周' : '月'}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleAllLock}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+              allLocked
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'bg-muted text-muted-foreground hover:text-foreground'
+            }`}
+            title={allLocked ? '解锁所有功能区' : '锁定所有功能区'}
+          >
+            <span>{allLocked ? '🔒' : '🔓'}</span>
+            <span>{allLocked ? '已锁定' : '全部锁定'}</span>
+          </button>
+          <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
+            {(['day', 'week', 'month'] as ViewMode[]).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => onViewModeChange(mode)}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                  viewMode === mode
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {mode === 'day' ? '日' : mode === 'week' ? '周' : '月'}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

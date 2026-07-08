@@ -3,6 +3,9 @@ export const TIME_GRANULARITY = 5
 export const VIEW_START_MINUTES = 360 // 6:00
 export const VIEW_END_MINUTES = MINUTES_IN_DAY // 24:00
 export const VIEW_DURATION = VIEW_END_MINUTES - VIEW_START_MINUTES // 1080 minutes = 18 hours
+export const EARLY_VIEW_START_MINUTES = 0 // 0:00
+export const EARLY_VIEW_END_MINUTES = VIEW_START_MINUTES // 6:00
+export const EARLY_VIEW_DURATION = EARLY_VIEW_END_MINUTES - EARLY_VIEW_START_MINUTES // 360 minutes = 6 hours
 
 export function minutesToTime(minutes: number): string {
   const h = Math.floor(minutes / 60)

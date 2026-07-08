@@ -2,17 +2,19 @@
 
 import { useRef, useState, useCallback, type MouseEvent, useEffect } from 'react'
 import { useDroppable, useDraggable } from '@dnd-kit/core'
-import { MINUTES_IN_DAY, VIEW_START_MINUTES, VIEW_END_MINUTES, VIEW_DURATION, minutesToTime, timeToMinutes, snapToGrid, roundToGranularity, isToday } from '@/lib/time'
+import { MINUTES_IN_DAY, VIEW_START_MINUTES, VIEW_END_MINUTES, VIEW_DURATION, EARLY_VIEW_START_MINUTES, EARLY_VIEW_END_MINUTES, EARLY_VIEW_DURATION, minutesToTime, timeToMinutes, snapToGrid, roundToGranularity, isToday } from '@/lib/time'
 import { useTimeBlockStore, type TimeBlockData, BLOCK_COLORS } from '@/store/timeBlockStore'
 import { useTaskStore, PRIORITY_CONFIG, type TaskData } from '@/store/taskStore'
 import { TaskEditModal } from './TaskEditModal'
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu'
+import { useUIStore } from '@/store/uiStore'
 import type { Priority } from '@/types/task'
 
 interface TimeBlockItemProps {
   block: TimeBlockData
   hourHeight: number
   isTodayColumn?: boolean
+  isEarlyView?: boolean
 }
 
 type DragMode = 'move' | 'resize-top' | 'resize-bottom' | null
@@ -33,6 +35,7 @@ function BlockTaskItem({
 
   const pCfg = PRIORITY_CONFIG[task.priority]
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const { openMenu } = useUIStore()
 
   const menuItems: ContextMenuItem[] = [
     {
@@ -74,6 +77,7 @@ function BlockTaskItem({
         onContextMenu={(e) => {
           e.preventDefault()
           e.stopPropagation()
+          openMenu(`task-${task.id}`)
           setContextMenu({ x: e.clientX, y: e.clientY })
         }}
         onDoubleClick={(e) => {
@@ -108,6 +112,7 @@ function BlockTaskItem({
 
       {contextMenu && (
         <ContextMenu
+          id={`task-${task.id}`}
           items={menuItems}
           x={contextMenu.x}
           y={contextMenu.y}
@@ -118,7 +123,7 @@ function BlockTaskItem({
   )
 }
 
-export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: TimeBlockItemProps) {
+export function TimeBlockItem({ block, hourHeight, isTodayColumn = false, isEarlyView = false }: TimeBlockItemProps) {
   const { updateBlock, updateBlockLocal, syncBlock, removeBlock, selectBlock, selectedBlockId, toggleLock, copyBlock, duplicateBlock } = useTimeBlockStore()
   const { tasks, removeFromBlock, toggleComplete, updateTask, removeTask, assignToBlock, canAssignToBlock, getBlockTaskDuration } = useTaskStore()
   const dragMode = useRef<DragMode>(null)
@@ -136,6 +141,7 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: Time
   const editorRef = useRef<HTMLDivElement>(null)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [blockContextMenu, setBlockContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const { openMenu: openBlockMenu } = useUIStore()
 
   const { isOver, setNodeRef, active } = useDroppable({
     id: `droppable-${block.id}`,
@@ -144,12 +150,25 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: Time
 
   const selected = selectedBlockId === block.id
 
-  const visibleStart = Math.max(block.startTime, VIEW_START_MINUTES)
-  const visibleEnd = Math.min(block.endTime, VIEW_END_MINUTES)
-  const isFullyOutsideView = visibleStart >= visibleEnd
+  let visibleStart: number
+  let visibleEnd: number
+  let topPercent: number
+  let heightPercent: number
+  let isFullyOutsideView: boolean
 
-  const topPercent = ((visibleStart - VIEW_START_MINUTES) / VIEW_DURATION) * 100
-  const heightPercent = ((visibleEnd - visibleStart) / VIEW_DURATION) * 100
+  if (isEarlyView) {
+    visibleStart = Math.max(block.startTime, EARLY_VIEW_START_MINUTES)
+    visibleEnd = Math.min(block.endTime, EARLY_VIEW_END_MINUTES)
+    isFullyOutsideView = visibleStart >= visibleEnd
+    topPercent = ((visibleStart - EARLY_VIEW_START_MINUTES) / EARLY_VIEW_DURATION) * 100
+    heightPercent = ((visibleEnd - visibleStart) / EARLY_VIEW_DURATION) * 100
+  } else {
+    visibleStart = Math.max(block.startTime, VIEW_START_MINUTES)
+    visibleEnd = Math.min(block.endTime, VIEW_END_MINUTES)
+    isFullyOutsideView = visibleStart >= visibleEnd
+    topPercent = ((visibleStart - VIEW_START_MINUTES) / VIEW_DURATION) * 100
+    heightPercent = ((visibleEnd - visibleStart) / VIEW_DURATION) * 100
+  }
 
   const blockDuration = block.endTime - block.startTime
   const totalTaskDuration = getBlockTaskDuration(block.id)
@@ -208,28 +227,31 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: Time
         rafRef.current = null
         const deltaMinutes = roundToGranularity((pendingDelta.current / hourHeight) * 60)
 
+        const viewMin = isEarlyView ? EARLY_VIEW_START_MINUTES : VIEW_START_MINUTES
+        const viewMax = isEarlyView ? EARLY_VIEW_END_MINUTES : VIEW_END_MINUTES
+
         if (dragMode.current === 'move') {
           const duration = dragStartEnd.current - dragStartStart.current
           let newStart = dragStartStart.current + deltaMinutes
           let newEnd = newStart + duration
 
-          if (newStart < VIEW_START_MINUTES) {
-            newStart = VIEW_START_MINUTES
-            newEnd = duration + VIEW_START_MINUTES
+          if (newStart < viewMin) {
+            newStart = viewMin
+            newEnd = duration + viewMin
           }
-          if (newEnd > MINUTES_IN_DAY) {
-            newEnd = MINUTES_IN_DAY
-            newStart = MINUTES_IN_DAY - duration
+          if (newEnd > viewMax) {
+            newEnd = viewMax
+            newStart = viewMax - duration
           }
 
           updateBlockLocal(block.id, { startTime: newStart, endTime: newEnd })
         } else if (dragMode.current === 'resize-top') {
           let newStart = dragStartStart.current + deltaMinutes
-          newStart = Math.max(VIEW_START_MINUTES, Math.min(newStart, dragStartEnd.current - 5))
+          newStart = Math.max(viewMin, Math.min(newStart, dragStartEnd.current - 5))
           updateBlockLocal(block.id, { startTime: newStart })
         } else if (dragMode.current === 'resize-bottom') {
           let newEnd = dragStartEnd.current + deltaMinutes
-          newEnd = Math.max(dragStartStart.current + 5, Math.min(newEnd, MINUTES_IN_DAY))
+          newEnd = Math.max(dragStartStart.current + 5, Math.min(newEnd, viewMax))
           updateBlockLocal(block.id, { endTime: newEnd })
         }
       }
@@ -373,6 +395,7 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: Time
         onContextMenu={(e) => {
           e.preventDefault()
           e.stopPropagation()
+          openBlockMenu(`block-${block.id}`)
           setBlockContextMenu({ x: e.clientX, y: e.clientY })
         }}
       >
@@ -584,6 +607,7 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false }: Time
 
       {blockContextMenu && (
         <ContextMenu
+          id={`block-${block.id}`}
           items={[
             {
               label: '复制',

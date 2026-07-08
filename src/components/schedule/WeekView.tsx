@@ -12,6 +12,7 @@ import { useTaskStore, PRIORITY_CONFIG } from '@/store/taskStore'
 import { useTimeBlockStore } from '@/store/timeBlockStore'
 import { useDataInit } from '@/hooks/useDataInit'
 import { useTaskExpiration } from '@/hooks/useTaskExpiration'
+import { useSettingsStore } from '@/store/settingsStore'
 
 // 任务列 droppable 包装
 function TaskListDropZone({ children }: { children: React.ReactNode }) {
@@ -37,6 +38,9 @@ interface WeekViewProps {
 export function WeekView({ hourHeight = 180 }: WeekViewProps) {
   const ready = useDataInit()
   useTaskExpiration()
+
+  const { hourHeight: settingsHourHeight } = useSettingsStore()
+  const effectiveHourHeight = settingsHourHeight || hourHeight
 
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewMode, setViewMode] = useState<ViewMode>('week')
@@ -167,13 +171,13 @@ export function WeekView({ hourHeight = 180 }: WeekViewProps) {
           ) : (
             <div className="flex-1 overflow-y-auto overflow-x-hidden">
               <div className="flex min-w-full">
-                <TimeRuler hourHeight={hourHeight} />
+                <TimeRuler hourHeight={effectiveHourHeight} />
                 <div className="flex flex-1 min-w-0">
                   {displayDates.map((date, index) => (
                     <DayColumn
                       key={`${formatDate(date)}-${index}`}
                       date={date}
-                      hourHeight={hourHeight}
+                      hourHeight={effectiveHourHeight}
                     />
                   ))}
                 </div>

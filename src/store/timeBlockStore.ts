@@ -12,12 +12,18 @@ export interface TimeBlockData {
 }
 
 export const BLOCK_COLORS = [
-  { name: '蓝色', value: '#3b82f6', bg: 'bg-blue-500/20', border: 'border-blue-500', text: 'text-blue-700' },
-  { name: '绿色', value: '#22c55e', bg: 'bg-green-500/20', border: 'border-green-500', text: 'text-green-700' },
+  { name: '番茄红', value: '#ef4444', bg: 'bg-red-500/20', border: 'border-red-500', text: 'text-red-700' },
+  { name: '番茄绿', value: '#22c55e', bg: 'bg-green-500/20', border: 'border-green-500', text: 'text-green-700' },
+  { name: '番茄蓝', value: '#3b82f6', bg: 'bg-blue-500/20', border: 'border-blue-500', text: 'text-blue-700' },
+  { name: '番茄黄', value: '#eab308', bg: 'bg-yellow-500/20', border: 'border-yellow-500', text: 'text-yellow-700' },
   { name: '橙色', value: '#f97316', bg: 'bg-orange-500/20', border: 'border-orange-500', text: 'text-orange-700' },
   { name: '紫色', value: '#a855f7', bg: 'bg-purple-500/20', border: 'border-purple-500', text: 'text-purple-700' },
   { name: '粉色', value: '#ec4899', bg: 'bg-pink-500/20', border: 'border-pink-500', text: 'text-pink-700' },
   { name: '青色', value: '#06b6d4', bg: 'bg-cyan-500/20', border: 'border-cyan-500', text: 'text-cyan-700' },
+  { name: '靛蓝', value: '#6366f1', bg: 'bg-indigo-500/20', border: 'border-indigo-500', text: 'text-indigo-700' },
+  { name: '玫瑰', value: '#f43f5e', bg: 'bg-rose-500/20', border: 'border-rose-500', text: 'text-rose-700' },
+  { name: '琥珀', value: '#f59e0b', bg: 'bg-amber-500/20', border: 'border-amber-500', text: 'text-amber-700' },
+  { name: '石灰', value: '#84cc16', bg: 'bg-lime-500/20', border: 'border-lime-500', text: 'text-lime-700' },
 ]
 
 interface TimeBlockStore {
@@ -35,6 +41,7 @@ interface TimeBlockStore {
   selectBlock: (id: string | null) => void
   getBlocksByDate: (date: string) => TimeBlockData[]
   toggleLock: (id: string) => void
+  toggleAllLock: () => boolean
   copyBlock: (id: string) => void
   pasteBlock: (date: string, targetStartTime?: number) => string | null
   duplicateBlock: (id: string) => string | null
@@ -209,6 +216,18 @@ export const useTimeBlockStore = create<TimeBlockStore>((set, get) => ({
       ),
     }))
     apiPut(`/api/blocks/${id}`, { locked: newLocked })
+  },
+
+  toggleAllLock: () => {
+    const allLocked = get().blocks.every((b) => b.locked)
+    const newLocked = !allLocked
+    set((state) => ({
+      blocks: state.blocks.map((b) => ({ ...b, locked: newLocked })),
+    }))
+    get().blocks.forEach((b) => {
+      apiPut(`/api/blocks/${b.id}`, { locked: newLocked })
+    })
+    return newLocked
   },
 
   copyBlock: (id) => {

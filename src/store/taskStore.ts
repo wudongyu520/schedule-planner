@@ -35,6 +35,7 @@ interface TaskStore {
   logs: TaskLogData[]
   sortMode: SortMode
   loaded: boolean
+  clipboardTask: TaskData | null
 
   loadFromDB: () => Promise<void>
   addTask: (task: Omit<TaskData, 'id' | 'status' | 'timeBlockId' | 'blockPosition' | 'completed'>) => string
@@ -50,6 +51,8 @@ interface TaskStore {
   setSortMode: (mode: SortMode) => void
   expireTasksFromBlock: (blockId: string, reason: string) => void
   loadLogs: () => Promise<void>
+  copyTask: (id: string) => void
+  pasteTask: () => string | null
 }
 
 function genId(): string {
@@ -90,6 +93,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   logs: [],
   sortMode: 'default',
   loaded: false,
+  clipboardTask: null,
 
   loadFromDB: async () => {
     try {
@@ -258,5 +262,31 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         reason,
       })
     })
+  },
+
+  copyTask: (id) => {
+    const task = get().tasks.find((t) => t.id === id)
+    if (!task) return
+    set({ clipboardTask: { ...task } })
+  },
+
+  pasteTask: () => {
+    const clipboard = get().clipboardTask
+    if (!clipboard) return null
+
+    const id = genId()
+    const newTask: TaskData = {
+      ...clipboard,
+      id,
+      status: 'PENDING',
+      timeBlockId: null,
+      blockPosition: null,
+      completed: false,
+      title: `${clipboard.title} (副本)`,
+    }
+
+    set((state) => ({ tasks: [...state.tasks, newTask] }))
+    apiPost('/api/tasks', newTask)
+    return id
   },
 }))

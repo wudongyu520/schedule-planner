@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, type ReactNode } from 'react'
+import { useUIStore } from '@/store/uiStore'
 
 export interface ContextMenuItem {
   label: string
@@ -11,23 +12,29 @@ export interface ContextMenuItem {
 }
 
 interface ContextMenuProps {
+  id: string
   items: ContextMenuItem[]
   x: number
   y: number
   onClose: () => void
 }
 
-export function ContextMenu({ items, x, y, onClose }: ContextMenuProps) {
+export function ContextMenu({ id, items, x, y, onClose }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null)
+  const { menuId, closeMenu } = useUIStore()
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
+        closeMenu()
         onClose()
       }
     }
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        closeMenu()
+        onClose()
+      }
     }
     document.addEventListener('mousedown', handleClick)
     document.addEventListener('keydown', handleEscape)
@@ -35,14 +42,19 @@ export function ContextMenu({ items, x, y, onClose }: ContextMenuProps) {
       document.removeEventListener('mousedown', handleClick)
       document.removeEventListener('keydown', handleEscape)
     }
-  }, [onClose])
+  }, [closeMenu, onClose])
 
-  // 计算位置，确保不超出屏幕
+  useEffect(() => {
+    if (menuId !== id) {
+      onClose()
+    }
+  }, [menuId, id, onClose])
+
   const style: React.CSSProperties = {
     position: 'fixed',
-    left: x,
-    top: y,
-    zIndex: 100,
+    left: Math.min(x, window.innerWidth - 200),
+    top: Math.min(y, window.innerHeight - 300),
+    zIndex: 1000,
   }
 
   return (
@@ -57,6 +69,7 @@ export function ContextMenu({ items, x, y, onClose }: ContextMenuProps) {
           <button
             onClick={() => {
               item.onClick()
+              closeMenu()
               onClose()
             }}
             className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 hover:bg-muted transition-colors ${
