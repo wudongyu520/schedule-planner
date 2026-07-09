@@ -217,51 +217,85 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false, isEarl
       if (block.locked) return
 
       dragMode.current = mode
-      dragStartY.current = e.clientY
-      dragStartStart.current = block.startTime
-      dragStartEnd.current = block.endTime
+      let lastClientY = e.clientY
+      let currentStart = block.startTime
+      let currentEnd = block.endTime
+      let accumulatedDeltaY = 0
       setIsDragging(true)
       selectBlock(block.id)
 
-      const viewMin = EARLY_VIEW_START_MINUTES
-      const viewMax = VIEW_END_MINUTES
+      const viewMin = isEarlyView ? EARLY_VIEW_START_MINUTES : VIEW_START_MINUTES
+      const viewMax = isEarlyView ? EARLY_VIEW_END_MINUTES : VIEW_END_MINUTES
 
-      const applyDelta = (snap: boolean = false) => {
-        rafRef.current = null
-        const rawDeltaMinutes = (pendingDelta.current / hourHeight) * 60
-        const deltaMinutes = snap ? roundToGranularity(rawDeltaMinutes) : rawDeltaMinutes
+      const applyMove = (deltaY: number, snap: boolean) => {
+        const deltaMinutes = (deltaY / hourHeight) * 60
+        const duration = currentEnd - currentStart
+        let newStart = currentStart + deltaMinutes
+        let newEnd = newStart + duration
 
-        if (dragMode.current === 'move') {
-          const duration = dragStartEnd.current - dragStartStart.current
-          let newStart = dragStartStart.current + deltaMinutes
-          let newEnd = newStart + duration
+        if (newStart < viewMin) {
+          newStart = viewMin
+          newEnd = duration + viewMin
+        }
+        if (newEnd > viewMax) {
+          newEnd = viewMax
+          newStart = viewMax - duration
+        }
 
-          if (newStart < viewMin) {
-            newStart = viewMin
-            newEnd = duration + viewMin
-          }
-          if (newEnd > viewMax) {
-            newEnd = viewMax
-            newStart = viewMax - duration
-          }
+        const finalStart = snap ? snapToGrid(newStart) : newStart
+        const finalEnd = snap ? snapToGrid(newEnd) : newEnd
 
-          updateBlockLocal(block.id, { startTime: newStart, endTime: newEnd }, !snap)
-        } else if (dragMode.current === 'resize-top') {
-          let newStart = dragStartStart.current + deltaMinutes
-          newStart = Math.max(viewMin, Math.min(newStart, dragStartEnd.current - 5))
-          updateBlockLocal(block.id, { startTime: newStart }, !snap)
-        } else if (dragMode.current === 'resize-bottom') {
-          let newEnd = dragStartEnd.current + deltaMinutes
-          newEnd = Math.max(dragStartStart.current + 5, Math.min(newEnd, viewMax))
-          updateBlockLocal(block.id, { endTime: newEnd }, !snap)
+        const ok = updateBlockLocal(block.id, { startTime: finalStart, endTime: finalEnd }, !snap)
+        if (ok) {
+          currentStart = finalStart
+          currentEnd = finalEnd
+        }
+      }
+
+      const applyResizeTop = (deltaY: number, snap: boolean) => {
+        const deltaMinutes = (deltaY / hourHeight) * 60
+        let newStart = currentStart + deltaMinutes
+        newStart = Math.max(viewMin, Math.min(newStart, currentEnd - 5))
+
+        const finalStart = snap ? snapToGrid(newStart) : newStart
+
+        const ok = updateBlockLocal(block.id, { startTime: finalStart }, !snap)
+        if (ok) {
+          currentStart = finalStart
+        }
+      }
+
+      const applyResizeBottom = (deltaY: number, snap: boolean) => {
+        const deltaMinutes = (deltaY / hourHeight) * 60
+        let newEnd = currentEnd + deltaMinutes
+        newEnd = Math.max(currentStart + 5, Math.min(newEnd, viewMax))
+
+        const finalEnd = snap ? snapToGrid(newEnd) : newEnd
+
+        const ok = updateBlockLocal(block.id, { endTime: finalEnd }, !snap)
+        if (ok) {
+          currentEnd = finalEnd
         }
       }
 
       const handleMouseMove = (moveEvent: globalThis.MouseEvent) => {
         if (!dragMode.current) return
-        pendingDelta.current = moveEvent.clientY - dragStartY.current
+        accumulatedDeltaY += moveEvent.clientY - lastClientY
+        lastClientY = moveEvent.clientY
+
         if (rafRef.current === null) {
-          rafRef.current = requestAnimationFrame(() => applyDelta(false))
+          rafRef.current = requestAnimationFrame(() => {
+            rafRef.current = null
+            const delta = accumulatedDeltaY
+            accumulatedDeltaY = 0
+            if (dragMode.current === 'move') {
+              applyMove(delta, false)
+            } else if (dragMode.current === 'resize-top') {
+              applyResizeTop(delta, false)
+            } else if (dragMode.current === 'resize-bottom') {
+              applyResizeBottom(delta, false)
+            }
+          })
         }
       }
 
@@ -270,7 +304,17 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false, isEarl
           cancelAnimationFrame(rafRef.current)
           rafRef.current = null
         }
-        applyDelta(true)
+        if (dragMode.current === 'move') {
+          const finalStart = snapToGrid(currentStart)
+          const finalEnd = snapToGrid(currentEnd)
+          updateBlockLocal(block.id, { startTime: finalStart, endTime: finalEnd }, false)
+        } else if (dragMode.current === 'resize-top') {
+          const finalStart = snapToGrid(currentStart)
+          updateBlockLocal(block.id, { startTime: finalStart }, false)
+        } else if (dragMode.current === 'resize-bottom') {
+          const finalEnd = snapToGrid(currentEnd)
+          updateBlockLocal(block.id, { endTime: finalEnd }, false)
+        }
         syncBlock(block.id)
         dragMode.current = null
         setIsDragging(false)
