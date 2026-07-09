@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma'
 import { getDefaultUserId, dateStringToDate } from '@/lib/defaultUser'
 
 interface ImportBlock {
+  id?: string
   name: string
   color: string
   date: string
@@ -13,6 +14,7 @@ interface ImportBlock {
 }
 
 interface ImportTask {
+  id?: string
   title: string
   description?: string | null
   duration: number
@@ -22,6 +24,7 @@ interface ImportTask {
   color?: string | null
   timeBlockId?: string | null
   blockPosition?: number | null
+  completed?: boolean
   completedAt?: string | null
 }
 
@@ -71,18 +74,25 @@ export async function POST(request: NextRequest) {
           if (!b.name || !b.color || !b.date || b.startTime === undefined || b.endTime === undefined) {
             continue
           }
-          await tx.timeBlock.create({
-            data: {
-              userId,
-              name: b.name,
-              color: b.color,
-              date: dateStringToDate(b.date),
-              startTime: Number(b.startTime),
-              endTime: Number(b.endTime),
-              position: b.position !== undefined ? Number(b.position) : 0,
-              locked: b.locked === true,
-            },
-          })
+          const blockData = {
+            userId,
+            name: b.name,
+            color: b.color,
+            date: dateStringToDate(b.date),
+            startTime: Number(b.startTime),
+            endTime: Number(b.endTime),
+            position: b.position !== undefined ? Number(b.position) : 0,
+            locked: b.locked === true,
+          }
+          if (b.id) {
+            await tx.timeBlock.upsert({
+              where: { id: b.id },
+              update: blockData,
+              create: { ...blockData, id: b.id },
+            })
+          } else {
+            await tx.timeBlock.create({ data: blockData })
+          }
           result.timeBlocks++
         }
       }
@@ -93,21 +103,29 @@ export async function POST(request: NextRequest) {
           if (!t.title || t.duration === undefined) {
             continue
           }
-          await tx.task.create({
-            data: {
-              userId,
-              title: t.title,
-              description: t.description ?? null,
-              duration: Number(t.duration),
-              priority: (t.priority as 'HIGH' | 'MEDIUM' | 'LOW') ?? 'MEDIUM',
-              status: (t.status as 'PENDING' | 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED') ?? 'PENDING',
-              tags: t.tags ?? [],
-              color: t.color ?? null,
-              timeBlockId: t.timeBlockId ?? null,
-              blockPosition: t.blockPosition !== undefined ? Number(t.blockPosition) : null,
-              completedAt: t.completedAt ? new Date(t.completedAt) : null,
-            },
-          })
+          const taskData = {
+            userId,
+            title: t.title,
+            description: t.description ?? null,
+            duration: Number(t.duration),
+            priority: (t.priority as 'HIGH' | 'MEDIUM' | 'LOW') ?? 'MEDIUM',
+            status: (t.status as 'PENDING' | 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED') ?? 'PENDING',
+            tags: t.tags ?? [],
+            color: t.color ?? null,
+            timeBlockId: t.timeBlockId ?? null,
+            blockPosition: t.blockPosition !== undefined ? Number(t.blockPosition) : null,
+            completed: t.completed === true,
+            completedAt: t.completedAt ? new Date(t.completedAt) : null,
+          }
+          if (t.id) {
+            await tx.task.upsert({
+              where: { id: t.id },
+              update: taskData,
+              create: { ...taskData, id: t.id },
+            })
+          } else {
+            await tx.task.create({ data: taskData })
+          }
           result.tasks++
         }
       }
