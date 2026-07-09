@@ -31,7 +31,8 @@ export function DateHeader({
   onNextMonth,
   onToday,
   onViewModeChange,
-}: DateHeaderProps) {
+  showDateRow = true,
+}: DateHeaderProps & { showDateRow?: boolean }) {
   const startDate = weekDates[0]
   const endDate = weekDates[6]
   const { blocks, toggleAllLock } = useTimeBlockStore()
@@ -160,7 +161,7 @@ export function DateHeader({
         </div>
       </div>
 
-      {viewMode !== 'month' && (
+      {showDateRow && viewMode !== 'month' && (
         <div className="flex">
           <div className="w-16 shrink-0 border-r border-border" />
           <div className="flex flex-1">

@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent, PointerSensor, TouchSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core'
-import { getWeekDates, addWeeks, addDays, formatDate } from '@/lib/time'
+import { getWeekDates, addWeeks, addDays, formatDate, isToday, getDayShortName } from '@/lib/time'
 import { DateHeader, type ViewMode } from './DateHeader'
 import { TimeRuler } from './TimeRuler'
 import { DayColumn } from './DayColumn'
@@ -158,6 +158,7 @@ export function WeekView({ hourHeight = 180 }: WeekViewProps) {
             onNextMonth={handleNextMonth}
             onToday={handleToday}
             onViewModeChange={setViewMode}
+            showDateRow={false}
           />
 
           {viewMode === 'month' ? (
@@ -170,6 +171,33 @@ export function WeekView({ hourHeight = 180 }: WeekViewProps) {
             />
           ) : (
             <div className="flex-1 overflow-y-auto overflow-x-hidden">
+              <div className="flex sticky top-0 z-10 bg-background border-b border-border">
+                <div className="w-16 shrink-0 border-r border-border" />
+                <div className="flex flex-1 min-w-0">
+                  {displayDates.map((date, index) => {
+                    const today = isToday(date)
+                    return (
+                      <div
+                        key={index}
+                        className={`flex-1 min-w-[120px] flex flex-col items-center py-2 border-r border-border last:border-r-0 ${
+                          today ? 'bg-primary/5' : ''
+                        }`}
+                      >
+                        <span className={`text-xs ${today ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+                          {getDayShortName(date)}
+                        </span>
+                        <span
+                          className={`text-lg font-semibold mt-0.5 w-8 h-8 flex items-center justify-center rounded-full ${
+                            today ? 'bg-primary text-primary-foreground' : ''
+                          }`}
+                        >
+                          {date.getDate()}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
               <div className="flex min-w-full">
                 <TimeRuler hourHeight={effectiveHourHeight} />
                 <div className="flex flex-1 min-w-0">
