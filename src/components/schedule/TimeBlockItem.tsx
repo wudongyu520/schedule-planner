@@ -224,7 +224,7 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false, isEarl
       selectBlock(block.id)
 
       const viewMin = EARLY_VIEW_START_MINUTES
-        const viewMax = VIEW_END_MINUTES
+      const viewMax = VIEW_END_MINUTES
 
       const applyDelta = (snap: boolean = false) => {
         rafRef.current = null
@@ -245,15 +245,33 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false, isEarl
             newStart = viewMax - duration
           }
 
-          updateBlockLocal(block.id, { startTime: newStart, endTime: newEnd }, !snap)
+          const success = updateBlockLocal(block.id, { startTime: newStart, endTime: newEnd }, !snap)
+          if (success) {
+            dragStartStart.current = newStart
+            dragStartEnd.current = newEnd
+            dragStartY.current = dragStartY.current + pendingDelta.current
+          }
+          pendingDelta.current = 0
         } else if (dragMode.current === 'resize-top') {
           let newStart = dragStartStart.current + deltaMinutes
           newStart = Math.max(viewMin, Math.min(newStart, dragStartEnd.current - 5))
-          updateBlockLocal(block.id, { startTime: newStart }, !snap)
+
+          const success = updateBlockLocal(block.id, { startTime: newStart }, !snap)
+          if (success) {
+            dragStartStart.current = newStart
+            dragStartY.current = dragStartY.current + pendingDelta.current
+          }
+          pendingDelta.current = 0
         } else if (dragMode.current === 'resize-bottom') {
           let newEnd = dragStartEnd.current + deltaMinutes
           newEnd = Math.max(dragStartStart.current + 5, Math.min(newEnd, viewMax))
-          updateBlockLocal(block.id, { endTime: newEnd }, !snap)
+
+          const success = updateBlockLocal(block.id, { endTime: newEnd }, !snap)
+          if (success) {
+            dragStartEnd.current = newEnd
+            dragStartY.current = dragStartY.current + pendingDelta.current
+          }
+          pendingDelta.current = 0
         }
       }
 
