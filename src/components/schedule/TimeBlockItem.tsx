@@ -508,17 +508,17 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false, isEarl
 
       {showEditor && (
         <div
-          className="fixed z-50 w-64 p-4 bg-background rounded-xl shadow-2xl border border-border"
-          style={{
-            left: '50%',
-            top: '50%',
-            transform: 'translate(-50%, -50%)',
-          }}
-          ref={editorRef}
-          onClick={(e) => e.stopPropagation()}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowEditor(false)}
           onMouseDown={(e) => e.stopPropagation()}
         >
-          <div className="text-sm font-semibold mb-3">编辑功能区</div>
+          <div
+            className="w-64 p-4 bg-background rounded-xl shadow-2xl border border-border"
+            ref={editorRef}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="text-sm font-semibold mb-3">编辑功能区</div>
 
           <div className="space-y-3">
             <div>
@@ -556,7 +556,7 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false, isEarl
 
             <div>
               <label className="text-xs text-muted-foreground mb-1.5 block">颜色</label>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {BLOCK_COLORS.map((c) => (
                   <button
                     key={c.value}
@@ -568,6 +568,14 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false, isEarl
                     title={c.name}
                   />
                 ))}
+                <div className="relative">
+                  <input
+                    type="color"
+                    value={editColor}
+                    onChange={(e) => setEditColor(e.target.value)}
+                    className="w-7 h-7 rounded-full border-2 border-dashed border-border cursor-pointer hover:border-foreground transition-colors"
+                  />
+                </div>
               </div>
             </div>
 
@@ -601,6 +609,7 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false, isEarl
                 删除
               </button>
             </div>
+          </div>
           </div>
         </div>
       )}

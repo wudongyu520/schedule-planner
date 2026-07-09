@@ -26,20 +26,24 @@ export function ContextMenu({ id, items, x, y, onClose }: ContextMenuProps) {
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
+        e.stopPropagation()
         closeMenu()
         onClose()
       }
     }
+
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         closeMenu()
         onClose()
       }
     }
-    document.addEventListener('mousedown', handleClick)
+
+    document.addEventListener('click', handleClick, true)
     document.addEventListener('keydown', handleEscape)
+
     return () => {
-      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('click', handleClick, true)
       document.removeEventListener('keydown', handleEscape)
     }
   }, [closeMenu, onClose])
@@ -61,13 +65,14 @@ export function ContextMenu({ id, items, x, y, onClose }: ContextMenuProps) {
     <div
       ref={ref}
       style={style}
-      className="min-w-[160px] py-1 bg-background rounded-lg shadow-xl border border-border overflow-hidden"
+      className="min-w-[160px] py-1 bg-background rounded-lg shadow-xl border border-border overflow-hidden backdrop-blur-sm"
     >
       {items.map((item, index) => (
         <div key={index}>
           {item.separator && <div className="my-1 border-t border-border" />}
           <button
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation()
               item.onClick()
               closeMenu()
               onClose()

@@ -12,18 +12,12 @@ export interface TimeBlockData {
 }
 
 export const BLOCK_COLORS = [
-  { name: '番茄红', value: '#ef4444', bg: 'bg-red-500/20', border: 'border-red-500', text: 'text-red-700' },
-  { name: '番茄绿', value: '#22c55e', bg: 'bg-green-500/20', border: 'border-green-500', text: 'text-green-700' },
-  { name: '番茄蓝', value: '#3b82f6', bg: 'bg-blue-500/20', border: 'border-blue-500', text: 'text-blue-700' },
-  { name: '番茄黄', value: '#eab308', bg: 'bg-yellow-500/20', border: 'border-yellow-500', text: 'text-yellow-700' },
-  { name: '橙色', value: '#f97316', bg: 'bg-orange-500/20', border: 'border-orange-500', text: 'text-orange-700' },
-  { name: '紫色', value: '#a855f7', bg: 'bg-purple-500/20', border: 'border-purple-500', text: 'text-purple-700' },
-  { name: '粉色', value: '#ec4899', bg: 'bg-pink-500/20', border: 'border-pink-500', text: 'text-pink-700' },
-  { name: '青色', value: '#06b6d4', bg: 'bg-cyan-500/20', border: 'border-cyan-500', text: 'text-cyan-700' },
-  { name: '靛蓝', value: '#6366f1', bg: 'bg-indigo-500/20', border: 'border-indigo-500', text: 'text-indigo-700' },
-  { name: '玫瑰', value: '#f43f5e', bg: 'bg-rose-500/20', border: 'border-rose-500', text: 'text-rose-700' },
-  { name: '琥珀', value: '#f59e0b', bg: 'bg-amber-500/20', border: 'border-amber-500', text: 'text-amber-700' },
-  { name: '石灰', value: '#84cc16', bg: 'bg-lime-500/20', border: 'border-lime-500', text: 'text-lime-700' },
+  { name: '红', value: '#ef4444', bg: 'bg-red-500/20', border: 'border-red-500', text: 'text-red-700' },
+  { name: '橙', value: '#f97316', bg: 'bg-orange-500/20', border: 'border-orange-500', text: 'text-orange-700' },
+  { name: '绿', value: '#22c55e', bg: 'bg-green-500/20', border: 'border-green-500', text: 'text-green-700' },
+  { name: '灰', value: '#6b7280', bg: 'bg-gray-500/20', border: 'border-gray-500', text: 'text-gray-700' },
+  { name: '深绿', value: '#15803d', bg: 'bg-green-700/20', border: 'border-green-700', text: 'text-green-800' },
+  { name: '蓝', value: '#3b82f6', bg: 'bg-blue-500/20', border: 'border-blue-500', text: 'text-blue-700' },
 ]
 
 interface TimeBlockStore {
