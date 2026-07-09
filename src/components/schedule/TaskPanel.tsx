@@ -245,6 +245,13 @@ export function TaskPanel() {
             <span>模板</span>
           </button>
           <button
+            onClick={() => setShowDataModal(true)}
+            className="flex-1 py-2 px-3 text-xs font-medium border border-input rounded-lg hover:bg-muted/50 transition-colors flex items-center justify-center gap-1"
+          >
+            <span>📦</span>
+            <span>数据</span>
+          </button>
+          <button
             onClick={() => setShowLogModal(true)}
             className="flex-1 py-2 px-3 text-xs font-medium border border-input rounded-lg hover:bg-muted/50 transition-colors flex items-center justify-center gap-1"
           >
