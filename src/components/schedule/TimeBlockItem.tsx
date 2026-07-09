@@ -223,12 +223,13 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false, isEarl
       setIsDragging(true)
       selectBlock(block.id)
 
-      const applyDelta = () => {
-        rafRef.current = null
-        const deltaMinutes = roundToGranularity((pendingDelta.current / hourHeight) * 60)
+      const viewMin = isEarlyView ? EARLY_VIEW_START_MINUTES : VIEW_START_MINUTES
+      const viewMax = isEarlyView ? EARLY_VIEW_END_MINUTES : VIEW_END_MINUTES
 
-        const viewMin = isEarlyView ? EARLY_VIEW_START_MINUTES : VIEW_START_MINUTES
-        const viewMax = isEarlyView ? EARLY_VIEW_END_MINUTES : VIEW_END_MINUTES
+      const applyDelta = (snap: boolean = false) => {
+        rafRef.current = null
+        const rawDeltaMinutes = (pendingDelta.current / hourHeight) * 60
+        const deltaMinutes = snap ? roundToGranularity(rawDeltaMinutes) : rawDeltaMinutes
 
         if (dragMode.current === 'move') {
           const duration = dragStartEnd.current - dragStartStart.current
@@ -260,7 +261,7 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false, isEarl
         if (!dragMode.current) return
         pendingDelta.current = moveEvent.clientY - dragStartY.current
         if (rafRef.current === null) {
-          rafRef.current = requestAnimationFrame(applyDelta)
+          rafRef.current = requestAnimationFrame(() => applyDelta(false))
         }
       }
 
@@ -269,9 +270,7 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false, isEarl
           cancelAnimationFrame(rafRef.current)
           rafRef.current = null
         }
-        // 最后应用一次确保位置准确
-        applyDelta()
-        // 松手时同步到数据库
+        applyDelta(true)
         syncBlock(block.id)
         dragMode.current = null
         setIsDragging(false)
@@ -286,7 +285,7 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false, isEarl
       document.body.style.cursor = mode === 'move' ? 'grabbing' : 'ns-resize'
       document.body.style.userSelect = 'none'
     },
-    [block, hourHeight, updateBlockLocal, syncBlock, selectBlock, block.locked]
+    [block, hourHeight, updateBlockLocal, syncBlock, selectBlock, block.locked, isEarlyView]
   )
 
   const handleSave = () => {
