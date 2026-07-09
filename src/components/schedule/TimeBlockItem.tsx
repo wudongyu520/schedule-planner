@@ -223,8 +223,8 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false, isEarl
       setIsDragging(true)
       selectBlock(block.id)
 
-      const viewMin = isEarlyView ? EARLY_VIEW_START_MINUTES : VIEW_START_MINUTES
-      const viewMax = isEarlyView ? EARLY_VIEW_END_MINUTES : VIEW_END_MINUTES
+      const viewMin = EARLY_VIEW_START_MINUTES
+        const viewMax = VIEW_END_MINUTES
 
       const applyDelta = (snap: boolean = false) => {
         rafRef.current = null

@@ -62,8 +62,8 @@ export function DayColumn({ date, hourHeight = 180 }: DayColumnProps) {
     }
   }
 
-  const mainBlocks = dayBlocks.filter((b) => b.startTime >= VIEW_START_MINUTES)
-  const earlyBlocks = dayBlocks.filter((b) => b.endTime <= VIEW_START_MINUTES)
+  const mainBlocks = dayBlocks.filter((b) => b.endTime > VIEW_START_MINUTES)
+  const earlyBlocks = dayBlocks.filter((b) => b.startTime < VIEW_START_MINUTES)
 
   const mainHours = Array.from({ length: 18 }, (_, i) => i + 6)
   const earlyHours = Array.from({ length: 6 }, (_, i) => i)
