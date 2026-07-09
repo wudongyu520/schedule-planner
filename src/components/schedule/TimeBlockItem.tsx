@@ -245,15 +245,15 @@ export function TimeBlockItem({ block, hourHeight, isTodayColumn = false, isEarl
             newStart = viewMax - duration
           }
 
-          updateBlockLocal(block.id, { startTime: newStart, endTime: newEnd })
+          updateBlockLocal(block.id, { startTime: newStart, endTime: newEnd }, !snap)
         } else if (dragMode.current === 'resize-top') {
           let newStart = dragStartStart.current + deltaMinutes
           newStart = Math.max(viewMin, Math.min(newStart, dragStartEnd.current - 5))
-          updateBlockLocal(block.id, { startTime: newStart })
+          updateBlockLocal(block.id, { startTime: newStart }, !snap)
         } else if (dragMode.current === 'resize-bottom') {
           let newEnd = dragStartEnd.current + deltaMinutes
           newEnd = Math.max(dragStartStart.current + 5, Math.min(newEnd, viewMax))
-          updateBlockLocal(block.id, { endTime: newEnd })
+          updateBlockLocal(block.id, { endTime: newEnd }, !snap)
         }
       }
 

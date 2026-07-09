@@ -29,7 +29,7 @@ interface TimeBlockStore {
   loadFromDB: () => Promise<void>
   addBlock: (date: string, startTime: number, endTime: number) => string | null
   updateBlock: (id: string, updates: Partial<Omit<TimeBlockData, 'id'>>) => boolean
-  updateBlockLocal: (id: string, updates: Partial<Omit<TimeBlockData, 'id'>>) => boolean
+  updateBlockLocal: (id: string, updates: Partial<Omit<TimeBlockData, 'id'>>, skipValidation?: boolean) => boolean
   syncBlock: (id: string) => void
   removeBlock: (id: string) => void
   selectBlock: (id: string | null) => void
@@ -145,7 +145,7 @@ export const useTimeBlockStore = create<TimeBlockStore>((set, get) => ({
     return true
   },
 
-  updateBlockLocal: (id, updates) => {
+  updateBlockLocal: (id, updates, skipValidation = false) => {
     const state = get()
     const block = state.blocks.find((b) => b.id === id)
     if (!block) return false
@@ -154,16 +154,21 @@ export const useTimeBlockStore = create<TimeBlockStore>((set, get) => ({
       return false
     }
 
-    const newStart = updates.startTime !== undefined ? snapToGrid(updates.startTime) : block.startTime
-    const newEnd = updates.endTime !== undefined ? snapToGrid(updates.endTime) : block.endTime
+    let newStart = updates.startTime !== undefined ? updates.startTime : block.startTime
+    let newEnd = updates.endTime !== undefined ? updates.endTime : block.endTime
 
-    if (newEnd - newStart < 5) return false
+    if (!skipValidation) {
+      newStart = snapToGrid(newStart)
+      newEnd = snapToGrid(newEnd)
 
-    if (updates.startTime !== undefined || updates.endTime !== undefined) {
-      const otherBlocks = state.blocks.filter((b) => b.id !== id && b.date === block.date)
-      const newRange: TimeRange = { startTime: newStart, endTime: newEnd }
-      const hasOverlap = otherBlocks.some((b) => checkOverlap(b, newRange))
-      if (hasOverlap) return false
+      if (newEnd - newStart < 5) return false
+
+      if (updates.startTime !== undefined || updates.endTime !== undefined) {
+        const otherBlocks = state.blocks.filter((b) => b.id !== id && b.date === block.date)
+        const newRange: TimeRange = { startTime: newStart, endTime: newEnd }
+        const hasOverlap = otherBlocks.some((b) => checkOverlap(b, newRange))
+        if (hasOverlap) return false
+      }
     }
 
     set((state) => ({
