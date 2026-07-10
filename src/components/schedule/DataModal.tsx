@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTimeBlockStore } from '@/store/timeBlockStore'
 
 interface DataModalProps {
   onClose: () => void
@@ -54,10 +55,31 @@ export function DataModal({ onClose, onDataChanged }: DataModalProps) {
         setMessage(`导入成功：${result.tasks || 0} 个任务，${result.timeBlocks || 0} 个功能区，${result.templates || 0} 个模板`)
         onDataChanged()
       } else {
-        setMessage('导入失败：文件格式不正确')
+        throw new Error('API导入失败')
       }
     } catch {
-      setMessage('导入失败：文件解析错误')
+      try {
+        const text = await file.text()
+        const data = JSON.parse(text)
+        if (data.timeBlocks && Array.isArray(data.timeBlocks)) {
+          const blocks = data.timeBlocks.map((b: any) => ({
+            id: b.id || `block_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            date: b.date,
+            name: b.name,
+            color: b.color,
+            startTime: b.startTime,
+            endTime: b.endTime,
+            locked: b.locked || false,
+          }))
+          useTimeBlockStore.setState({ blocks, loaded: true })
+          setMessage(`本地导入成功：${blocks.length} 个功能区`)
+          onDataChanged()
+        } else {
+          setMessage('导入失败：文件格式不正确')
+        }
+      } catch {
+        setMessage('导入失败：文件解析错误')
+      }
     } finally {
       setImporting(false)
     }
