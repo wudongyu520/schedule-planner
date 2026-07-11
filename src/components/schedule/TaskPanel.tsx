@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { useTaskStore, PRIORITY_CONFIG, type TaskData } from '@/store/taskStore'
+import { useTimeBlockStore } from '@/store/timeBlockStore'
+import { useTemplateStore } from '@/store/templateStore'
 import { useSettingsStore } from '@/store/settingsStore'
 import { TaskEditModal } from './TaskEditModal'
 import { TemplateModal } from './TemplateModal'
@@ -179,8 +181,13 @@ export function TaskPanel() {
     setEditingTaskId(null)
   }
 
-  const handleDataChanged = () => {
-    window.location.reload()
+  const handleDataChanged = async () => {
+    await Promise.all([
+      useTaskStore.getState().loadFromDB(),
+      useTimeBlockStore.getState().loadFromDB(),
+      useTemplateStore.getState().loadFromDB(),
+    ])
+    setShowDataModal(false)
   }
 
   return (

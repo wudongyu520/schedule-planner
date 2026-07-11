@@ -52,7 +52,8 @@ export function DataModal({ onClose, onDataChanged }: DataModalProps) {
 
       if (res.ok) {
         const result = await res.json()
-        setMessage(`导入成功：${result.tasks || 0} 个任务，${result.timeBlocks || 0} 个功能区，${result.templates || 0} 个模板`)
+        const imported = result.imported || {}
+        setMessage(`导入成功：${imported.tasks || 0} 个任务，${imported.timeBlocks || 0} 个功能区，${imported.templates || 0} 个模板`)
         onDataChanged()
       } else {
         throw new Error('API导入失败')
