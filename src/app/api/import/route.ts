@@ -68,6 +68,12 @@ export async function POST(request: NextRequest) {
 
     // 使用事务保证导入的原子性
     await prisma.$transaction(async (tx) => {
+      // 覆盖模式：先删除用户的所有旧数据（注意外键依赖顺序）
+      await tx.taskLog.deleteMany({ where: { userId } })
+      await tx.task.deleteMany({ where: { userId } })
+      await tx.timeBlock.deleteMany({ where: { userId } })
+      await tx.template.deleteMany({ where: { userId } })
+
       // 导入时间块
       if (Array.isArray(timeBlocks) && timeBlocks.length > 0) {
         for (const b of timeBlocks) {
@@ -85,11 +91,7 @@ export async function POST(request: NextRequest) {
             locked: b.locked === true,
           }
           if (b.id) {
-            await tx.timeBlock.upsert({
-              where: { id: b.id },
-              update: blockData,
-              create: { ...blockData, id: b.id },
-            })
+            await tx.timeBlock.create({ data: { ...blockData, id: b.id } })
           } else {
             await tx.timeBlock.create({ data: blockData })
           }
@@ -118,11 +120,7 @@ export async function POST(request: NextRequest) {
             completedAt: t.completedAt ? new Date(t.completedAt) : null,
           }
           if (t.id) {
-            await tx.task.upsert({
-              where: { id: t.id },
-              update: taskData,
-              create: { ...taskData, id: t.id },
-            })
+            await tx.task.create({ data: { ...taskData, id: t.id } })
           } else {
             await tx.task.create({ data: taskData })
           }
