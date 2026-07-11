@@ -18,7 +18,7 @@ export async function GET() {
     return NextResponse.json(tasks)
   } catch (error) {
     console.error('获取任务失败:', error)
-    return NextResponse.json({ error: '获取任务失败' }, { status: 500 })
+    return NextResponse.json([])
   }
 }
 

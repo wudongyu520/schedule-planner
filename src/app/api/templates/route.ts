@@ -14,7 +14,7 @@ export async function GET() {
     return NextResponse.json(templates)
   } catch (error) {
     console.error('获取模板失败:', error)
-    return NextResponse.json({ error: '获取模板失败' }, { status: 500 })
+    return NextResponse.json([])
   }
 }
 

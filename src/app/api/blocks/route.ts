@@ -19,7 +19,7 @@ export async function GET() {
     return NextResponse.json(result)
   } catch (error) {
     console.error('获取时间块失败:', error)
-    return NextResponse.json({ error: '获取时间块失败' }, { status: 500 })
+    return NextResponse.json([])
   }
 }
 
