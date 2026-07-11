@@ -293,7 +293,7 @@ POST   /api/logs                    # 创建日志
 
 ## 4. 数据库设计（概要）
 
-详见 [database.md](./database.md)
+详见 [database.md](database.md)
 
 核心表：
 - `User` - 用户

@@ -11,7 +11,7 @@ import { useTaskStore } from '@/store/taskStore'
  * 如果跨过，该功能区内未完成的任务自动作废
  */
 export function useTaskExpiration() {
-  const lastCheckedMinute = useRef(0)
+  const lastCheckedMinute = useRef<number | null>(null)
 
   useEffect(() => {
     const check = () => {
@@ -19,8 +19,16 @@ export function useTaskExpiration() {
       const todayStr = formatDate(now)
       const currentMinutes = now.getHours() * 60 + now.getMinutes()
 
+      const last = lastCheckedMinute.current
+
+      // 首次执行只记录基准时间，不处理过期
+      if (last === null) {
+        lastCheckedMinute.current = currentMinutes
+        return
+      }
+
       // 如果分钟数没变（或回退），跳过
-      if (currentMinutes <= lastCheckedMinute.current) {
+      if (currentMinutes <= last) {
         lastCheckedMinute.current = currentMinutes
         return
       }
@@ -32,7 +40,7 @@ export function useTaskExpiration() {
       const expiredBlocks = blocks.filter(
         (b) =>
           b.date === todayStr &&
-          b.endTime > lastCheckedMinute.current &&
+          b.endTime > last &&
           b.endTime <= currentMinutes
       )
 
